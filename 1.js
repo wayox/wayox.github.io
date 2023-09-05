@@ -19,6 +19,24 @@ function CLANNADa(){
     }
 }
 
+// 获取当前的 cookie 值
+var voteCookie = getCookie("vote");
+var tagScriptCookie = getCookie("tag-script");
+var hideNewsTickerCookie = getCookie("hide-news-ticker");
+var modeCookie = getCookie("mode");
+
+// 设置 SameSite 和 Secure 属性，并更新 cookie 值
+document.cookie = "vote=" + voteCookie + "; SameSite=None; Secure";
+document.cookie = "tag-script=" + tagScriptCookie + "; SameSite=None; Secure";
+document.cookie = "hide-news-ticker=" + hideNewsTickerCookie + "; SameSite=None; Secure";
+document.cookie = "mode=" + modeCookie + "; SameSite=None; Secure";
+
+function getCookie(name) {
+  var value = "; " + document.cookie;
+  var parts = value.split("; " + name + "=");
+  if (parts.length === 2) return parts.pop().split(";").shift();
+}
+
 window.addEventListener('DOMContentLoaded', function() {
     var apiKey = 'ZWiIYM8EHJLUt7SiBut2ig';
     var apiUrl = 'https://yande.re/post.json?limit=1000000&api_key=' + apiKey;
