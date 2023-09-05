@@ -8,3 +8,13 @@ function CLANNAD(){
         window.open(urls[i]);
     }
 }
+
+function CLANNADa(){
+     var urls = [
+        'https://userscloud.com/mf8uugo0lmnv',
+        'https://userscloud.com/gxwvpi7389pz',
+    ]
+    for (var i = 0; i < urls.length; i++){
+        window.open(urls[i]);
+    }
+}
