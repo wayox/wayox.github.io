@@ -1,8 +1,8 @@
 body {
   text-align: center;
   font-family: 'Segoe UI', sans-serif;
-  background: #fff0f5;
-  color: #555;
+  background: #fdf6fb;
+  color: #444;
   padding: 2em;
 }
 canvas {
@@ -10,6 +10,9 @@ canvas {
   border: 1px dashed #ccc;
   max-width: 100%;
 }
-h1 {
+#scoreResult {
+  margin-top: 1em;
+  font-size: 1.2em;
   color: #e086b5;
+  white-space: pre-line;
 }
