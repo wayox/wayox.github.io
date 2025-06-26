@@ -1,24 +1,15 @@
 body {
-  font-family: 'Segoe UI', sans-serif;
   text-align: center;
+  font-family: 'Segoe UI', sans-serif;
+  background: #fff0f5;
+  color: #555;
   padding: 2em;
-  background: #fffafc;
-  color: #333;
-}
-h1 {
-  color: #e086b5;
-  font-size: 2em;
-}
-input {
-  margin-top: 1em;
 }
 canvas {
   margin-top: 1em;
-  max-width: 100%;
   border: 1px dashed #ccc;
+  max-width: 100%;
 }
-#scoreDisplay {
-  margin-top: 1em;
-  font-size: 1.2em;
-  color: #8c5f94;
+h1 {
+  color: #e086b5;
 }
