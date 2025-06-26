@@ -2,16 +2,16 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <title>可爱评分系统 ✨</title>
+  <title>🌸 可爱评分器</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  <script src="libs/tf.min.js"></script>
+  <script src="libs/pose-detection.min.js"></script>
 </head>
 <body>
-  <h1>🌸 可爱评分系统</h1>
-  <input type="file" id="imageUpload" accept="image/*">
+  <h1>🌸 二次元立绘萌感评分</h1>
+  <input type="file" id="imageUpload" accept="image/*" />
   <canvas id="canvas"></canvas>
-  <p id="resultText">请上传图片～</p>
+  <div id="scoreResult"></div>
   <script src="script.js"></script>
 </body>
 </html>
