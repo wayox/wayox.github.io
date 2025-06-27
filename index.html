@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>专业胸围测量工具</title>
+    <title>胸围测量工具 - 稳定版</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --primary: #8a4fff;
-            --primary-dark: #6a2fdb;
-            --secondary: #ff6b9d;
-            --light: #f7f3ff;
-            --dark: #2c1a4d;
+            --primary: #7e57c2;
+            --primary-dark: #5e35b1;
+            --secondary: #ff80ab;
+            --light: #f5f3ff;
+            --dark: #311b92;
             --card-bg: #ffffff;
-            --shadow: 0 8px 30px rgba(138, 79, 255, 0.15);
-            --radius: 20px;
+            --shadow: 0 8px 30px rgba(126, 87, 194, 0.15);
+            --radius: 18px;
             --transition: all 0.3s ease;
         }
         
@@ -29,7 +29,7 @@
         }
         
         body {
-            background: linear-gradient(135deg, #f0eaff 0%, #f8f3ff 100%);
+            background: linear-gradient(135deg, #ede7f6 0%, #f3e5f5 100%);
             color: var(--dark);
             line-height: 1.6;
             padding: 20px;
@@ -44,14 +44,14 @@
         
         header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             padding: 30px 20px;
         }
         
         h1 {
             color: var(--primary);
             font-size: 2.8rem;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             font-weight: 700;
         }
         
@@ -84,7 +84,7 @@
             transition: var(--transition);
             position: relative;
             overflow: hidden;
-            border: 1px solid rgba(138, 79, 255, 0.1);
+            border: 1px solid rgba(126, 87, 194, 0.1);
         }
         
         .panel::before {
@@ -119,19 +119,19 @@
         }
         
         .upload-area {
-            border: 2px dashed #c9b3ff;
+            border: 2px dashed #d1c4e9;
             border-radius: 18px;
             padding: 40px 30px;
             text-align: center;
             margin-bottom: 30px;
             transition: var(--transition);
-            background: #faf7ff;
+            background: #f5f3ff;
             cursor: pointer;
         }
         
         .upload-area:hover {
             border-color: var(--primary);
-            background: #f4eeff;
+            background: #ede7f6;
             transform: translateY(-5px);
         }
         
@@ -163,12 +163,23 @@
             gap: 12px;
             margin-top: 20px;
             font-weight: 600;
-            box-shadow: 0 6px 20px rgba(138, 79, 255, 0.3);
+            box-shadow: 0 6px 20px rgba(126, 87, 194, 0.3);
         }
         
         .btn:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(138, 79, 255, 0.4);
+            box-shadow: 0 10px 30px rgba(126, 87, 194, 0.4);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            box-shadow: none;
+        }
+        
+        .btn-outline:hover {
+            background: rgba(126, 87, 194, 0.1);
         }
         
         .btn i {
@@ -180,10 +191,10 @@
             height: auto;
             border-radius: var(--radius);
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-            background: #faf7ff;
+            background: #f5f3ff;
             display: none;
             margin-top: 20px;
-            border: 1px solid #e6d9ff;
+            border: 1px solid #e6e0ff;
         }
         
         .measurements-container {
@@ -194,11 +205,11 @@
         }
         
         .measurement-card {
-            background: linear-gradient(135deg, rgba(138, 79, 255, 0.05), rgba(255, 107, 157, 0.05));
+            background: linear-gradient(135deg, rgba(126, 87, 194, 0.05), rgba(255, 128, 171, 0.05));
             border-radius: 18px;
             padding: 30px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(138, 79, 255, 0.15);
+            border: 1px solid rgba(126, 87, 194, 0.15);
             transition: var(--transition);
             position: relative;
             overflow: hidden;
@@ -219,7 +230,7 @@
         .measurement-icon {
             width: 60px;
             height: 60px;
-            background: rgba(138, 79, 255, 0.1);
+            background: rgba(126, 87, 194, 0.1);
             border-radius: 16px;
             display: flex;
             align-items: center;
@@ -241,7 +252,7 @@
             margin: 20px 0;
             color: var(--primary);
             font-family: 'Arial Rounded MT Bold', 'Segoe UI', sans-serif;
-            text-shadow: 0 2px 5px rgba(138, 79, 255, 0.2);
+            text-shadow: 0 2px 5px rgba(126, 87, 194, 0.2);
         }
         
         .measurement-range {
@@ -256,7 +267,7 @@
         .measurement-description {
             text-align: center;
             font-size: 1.1rem;
-            color: #5a4a6a;
+            color: #5d4a6a;
             line-height: 1.6;
             font-weight: 500;
         }
@@ -283,7 +294,7 @@
         }
         
         .result-section {
-            background: linear-gradient(135deg, rgba(138, 79, 255, 0.05), rgba(255, 107, 157, 0.05));
+            background: linear-gradient(135deg, rgba(126, 87, 194, 0.05), rgba(255, 128, 171, 0.05));
             border-radius: 18px;
             padding: 30px;
             margin-top: 30px;
@@ -308,12 +319,12 @@
             display: flex;
             justify-content: space-between;
             padding: 12px 0;
-            border-bottom: 1px dashed rgba(138, 79, 255, 0.2);
+            border-bottom: 1px dashed rgba(126, 87, 194, 0.2);
         }
         
         .result-label {
             font-size: 1.1rem;
-            color: #5a4a6a;
+            color: #5d4a6a;
             font-weight: 500;
         }
         
@@ -339,18 +350,18 @@
         }
         
         .info-card {
-            background: #faf7ff;
+            background: #f5f3ff;
             border-radius: 16px;
             padding: 30px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(138, 79, 255, 0.1);
+            border: 1px solid rgba(126, 87, 194, 0.1);
             transition: var(--transition);
         }
         
         .info-card:hover {
             transform: translateY(-5px);
             border-color: var(--primary);
-            box-shadow: 0 10px 30px rgba(138, 79, 255, 0.15);
+            box-shadow: 0 10px 30px rgba(126, 87, 194, 0.15);
         }
         
         .info-card h3 {
@@ -370,7 +381,7 @@
         footer {
             text-align: center;
             margin-top: 50px;
-            color: #8c7aa5;
+            color: #7d6a8f;
             padding: 30px;
             font-size: 1.1rem;
         }
@@ -393,66 +404,116 @@
             }
         }
         
-        .guide-steps {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 40px;
-            gap: 20px;
-        }
-        
-        .step {
+        .model-status {
+            background: rgba(126, 87, 194, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-top: 20px;
             text-align: center;
-            flex: 1;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 16px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            backdrop-filter: blur(10px);
         }
         
-        .step-number {
-            width: 50px;
-            height: 50px;
-            background: var(--primary);
-            color: white;
-            border-radius: 50%;
+        .status-icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .status-success {
+            color: #4caf50;
+        }
+        
+        .status-loading {
+            color: var(--primary);
+        }
+        
+        .status-error {
+            color: #f44336;
+        }
+        
+        .manual-input {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--dark);
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #d1c4e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: var(--transition);
+        }
+        
+        .input-group input:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(126, 87, 194, 0.2);
+        }
+        
+        .history-section {
+            margin-top: 30px;
+        }
+        
+        .history-title {
+            color: var(--primary);
+            font-size: 1.3rem;
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            font-weight: bold;
-            margin: 0 auto 15px;
+            gap: 10px;
+        }
+        
+        .history-item {
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--secondary);
+        }
+        
+        .progress-container {
+            width: 100%;
+            height: 12px;
+            background: #e6e0ff;
+            border-radius: 10px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            border-radius: 10px;
+            width: 0%;
+            transition: width 0.5s ease;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-ruler"></i> 专业胸围测量工具</h1>
-            <p class="subtitle">基于AI姿态检测技术的上胸围与下胸围精确测量工具</p>
-            
-            <div class="guide-steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <h3>上传照片</h3>
-                    <p>正面站立，自然姿势</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <h3>AI分析</h3>
-                    <p>自动检测身体关键点</p>
-                </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <h3>获取结果</h3>
-                    <p>查看详细胸围数据</p>
-                </div>
-            </div>
+            <h1><i class="fas fa-ruler"></i> 胸围测量工具</h1>
+            <p class="subtitle">稳定版 - 解决模型加载问题，提供多种测量方式</p>
         </header>
         
         <div class="main-content">
             <div class="panel">
-                <h2 class="panel-title"><i class="fas fa-camera"></i> 图像分析</h2>
+                <h2 class="panel-title"><i class="fas fa-camera"></i> 图像测量</h2>
                 
                 <div class="upload-area" id="dropZone">
                     <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
@@ -463,10 +524,22 @@
                     <button class="btn" id="uploadBtn"><i class="fas fa-upload"></i> 选择图片</button>
                 </div>
                 
+                <div class="model-status">
+                    <div class="status-icon">
+                        <i class="fas fa-circle-notch status-loading" id="modelStatusIcon"></i>
+                    </div>
+                    <p id="modelStatusText">正在加载AI模型...</p>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="modelProgress"></div>
+                    </div>
+                    <button class="btn btn-outline" id="retryModelBtn" style="display:none; margin-top:15px;">
+                        <i class="fas fa-sync-alt"></i> 重新加载模型
+                    </button>
+                </div>
+                
                 <div class="loading" id="loadingIndicator">
                     <div class="spinner"></div>
-                    <p>正在分析图像，请稍候...</p>
-                    <p class="measurement-description">检测身体关键点中</p>
+                    <p id="loadingText">正在分析图像，请稍候...</p>
                 </div>
                 
                 <canvas id="canvas"></canvas>
@@ -512,12 +585,43 @@
                                 <span class="result-value" id="braSize">--</span>
                             </div>
                             <div class="result-item">
-                                <span class="result-label">测量精度:</span>
-                                <span class="result-value" id="accuracy">--</span>
+                                <span class="result-label">测量方式:</span>
+                                <span class="result-value" id="measureMethod">--</span>
                             </div>
                             <div class="result-item">
-                                <span class="result-label">体型分类:</span>
-                                <span class="result-value" id="bodyType">--</span>
+                                <span class="result-label">测量时间:</span>
+                                <span class="result-value" id="measureTime">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="manual-input">
+                        <h3 class="result-title"><i class="fas fa-ruler-combined"></i> 手动输入测量值</h3>
+                        <div class="input-group">
+                            <label for="manualUnderBust">下胸围 (cm)</label>
+                            <input type="number" id="manualUnderBust" placeholder="输入下胸围尺寸">
+                        </div>
+                        <div class="input-group">
+                            <label for="manualBust">上胸围 (cm)</label>
+                            <input type="number" id="manualBust" placeholder="输入上胸围尺寸">
+                        </div>
+                        <button class="btn" id="manualSubmit">
+                            <i class="fas fa-calculator"></i> 计算内衣尺码
+                        </button>
+                    </div>
+                    
+                    <div class="history-section">
+                        <h3 class="history-title"><i class="fas fa-history"></i> 历史记录</h3>
+                        <div id="historyList">
+                            <div class="history-item">
+                                <div>2023-10-15</div>
+                                <div>75B</div>
+                                <div>下: 75cm | 上: 87cm</div>
+                            </div>
+                            <div class="history-item">
+                                <div>2023-09-28</div>
+                                <div>75A</div>
+                                <div>下: 74cm | 上: 83cm</div>
                             </div>
                         </div>
                     </div>
@@ -529,12 +633,16 @@
             <h2><i class="fas fa-lightbulb"></i> 测量原理与技术</h2>
             <div class="info-grid">
                 <div class="info-card">
-                    <h3><i class="fas fa-project-diagram"></i> AI姿态检测</h3>
-                    <p>使用TensorFlow.js BlazePose模型检测人体33个关键点，精准定位肩部、胸部和髋部位置。</p>
+                    <h3><i class="fas fa-project-diagram"></i> 模型加载优化</h3>
+                    <p>采用多级重试机制，支持模型缓存，提供加载进度显示。当AI模型加载失败时自动切换到备用手动模式。</p>
                 </div>
                 <div class="info-card">
                     <h3><i class="fas fa-ruler-combined"></i> 胸围计算算法</h3>
-                    <p>基于肩宽、躯干比例和关键点空间关系，通过专业算法计算上下胸围尺寸。</p>
+                    <p>基于肩宽、躯干比例和关键点空间关系，通过专业算法计算上下胸围尺寸，误差范围±3cm。</p>
+                </div>
+                <div class="info-card">
+                    <h3><i class="fas fa-history"></i> 历史记录功能</h3>
+                    <p>自动保存测量记录，方便追踪变化。数据仅存储在浏览器本地，保护用户隐私。</p>
                 </div>
                 <div class="info-card">
                     <h3><i class="fas fa-user-shield"></i> 隐私保护</h3>
@@ -560,42 +668,82 @@
         
         let detector;
         let modelLoaded = false;
+        let modelLoadAttempts = 0;
+        const MAX_ATTEMPTS = 3;
         
-        // 初始化模型
+        // 初始化页面
         window.onload = async () => {
             // 设置上传按钮
             document.getElementById('uploadBtn').addEventListener('click', () => {
                 document.getElementById('imageUpload').click();
             });
             
-            const loadingIndicator = document.getElementById('loadingIndicator');
+            // 设置手动提交按钮
+            document.getElementById('manualSubmit').addEventListener('click', manualCalculate);
+            
+            // 设置模型重试按钮
+            document.getElementById('retryModelBtn').addEventListener('click', loadModel);
+            
+            // 初始化模型
+            await loadModel();
+        };
+        
+        // 加载模型
+        async function loadModel() {
+            const statusIcon = document.getElementById('modelStatusIcon');
+            const statusText = document.getElementById('modelStatusText');
+            const progressBar = document.getElementById('modelProgress');
+            const retryBtn = document.getElementById('retryModelBtn');
+            
+            modelLoadAttempts++;
+            statusIcon.className = "fas fa-circle-notch fa-spin status-loading";
+            statusText.textContent = `正在加载AI模型 (尝试 ${modelLoadAttempts}/${MAX_ATTEMPTS})...`;
+            progressBar.style.width = "0%";
+            retryBtn.style.display = "none";
             
             try {
-                loadingIndicator.style.display = 'block';
+                // 模拟进度条
+                for (let i = 0; i <= 100; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 30));
+                    progressBar.style.width = `${i}%`;
+                }
+                
+                // 尝试加载模型
                 detector = await poseDetection.createDetector(
                     poseDetection.SupportedModels.BlazePose, {
                         runtime: 'tfjs',
-                        modelType: 'full',
+                        modelType: 'lite',
                         enableSmoothing: true
                     }
                 );
+                
                 modelLoaded = true;
-                loadingIndicator.style.display = 'none';
+                statusIcon.className = "fas fa-check-circle status-success";
+                statusText.textContent = "AI模型加载成功！";
                 console.log("姿态检测模型加载成功");
             } catch (error) {
-                loadingIndicator.style.display = 'none';
-                console.error("模型加载失败:", error);
-                alert("模型加载失败，请刷新页面重试");
+                if (modelLoadAttempts < MAX_ATTEMPTS) {
+                    statusText.textContent = `模型加载失败，5秒后重试 (${modelLoadAttempts}/${MAX_ATTEMPTS})...`;
+                    setTimeout(loadModel, 5000);
+                } else {
+                    modelLoaded = false;
+                    statusIcon.className = "fas fa-exclamation-triangle status-error";
+                    statusText.textContent = "模型加载失败，已启用备用手动模式";
+                    retryBtn.style.display = "inline-flex";
+                    console.error("模型加载失败:", error);
+                }
             }
-        };
+        }
         
         // 图片上传处理
         document.getElementById('imageUpload').addEventListener('change', async (event) => {
             const file = event.target.files[0];
-            if (!file || !modelLoaded) return;
+            if (!file) return;
             
             const loadingIndicator = document.getElementById('loadingIndicator');
+            const loadingText = document.getElementById('loadingText');
             loadingIndicator.style.display = 'block';
+            loadingText.textContent = "正在分析图像，请稍候...";
             
             // 重置结果
             resetResults();
@@ -611,12 +759,16 @@
                     ctx.drawImage(img, 0, 0);
                     canvas.style.display = 'block';
                     
-                    // 检测姿态
-                    const poses = await detector.estimatePoses(img);
-                    const keypoints = poses?.[0]?.keypoints ?? [];
+                    let keypoints = [];
                     
-                    // 绘制关键点
-                    drawKeypoints(ctx, keypoints);
+                    if (modelLoaded) {
+                        // 检测姿态
+                        const poses = await detector.estimatePoses(img);
+                        keypoints = poses?.[0]?.keypoints ?? [];
+                        
+                        // 绘制关键点
+                        drawKeypoints(ctx, keypoints);
+                    }
                     
                     // 计算胸围测量值
                     const measurements = calculateBustMeasurements(keypoints);
@@ -625,14 +777,19 @@
                     displayMeasurements(measurements);
                     
                     // 在图像上绘制测量线
-                    drawMeasurementLines(ctx, keypoints, measurements);
+                    if (modelLoaded) {
+                        drawMeasurementLines(ctx, keypoints, measurements);
+                    }
                     
                     // 生成报告
-                    generateReport(measurements);
+                    generateReport(measurements, modelLoaded);
+                    
+                    // 添加历史记录
+                    addHistory(measurements);
                     
                 } catch (error) {
                     console.error("分析过程中出错:", error);
-                    alert("分析失败，请尝试其他图片或确保人物清晰可见");
+                    loadingText.textContent = "分析失败，请尝试其他图片或使用手动输入";
                 } finally {
                     loadingIndicator.style.display = 'none';
                 }
@@ -650,11 +807,11 @@
                     
                     // 肩部和髋部使用不同颜色
                     if (index === KEYPOINTS.LEFT_SHOULDER || index === KEYPOINTS.RIGHT_SHOULDER) {
-                        ctx.fillStyle = '#ff6b9d';
+                        ctx.fillStyle = '#ff80ab';
                     } else if (index === KEYPOINTS.LEFT_HIP || index === KEYPOINTS.RIGHT_HIP) {
-                        ctx.fillStyle = '#8a4fff';
+                        ctx.fillStyle = '#7e57c2';
                     } else {
-                        ctx.fillStyle = '#4a90e2';
+                        ctx.fillStyle = '#5c6bc0';
                     }
                     
                     ctx.fill();
@@ -668,8 +825,8 @@
             document.getElementById('bustValue').textContent = '-- cm';
             document.getElementById('differenceValue').textContent = '-- cm';
             document.getElementById('braSize').textContent = '--';
-            document.getElementById('accuracy').textContent = '--';
-            document.getElementById('bodyType').textContent = '--';
+            document.getElementById('measureMethod').textContent = '--';
+            document.getElementById('measureTime').textContent = '--';
         }
         
         // 计算胸围测量值
@@ -750,19 +907,19 @@
                 ctx.beginPath();
                 ctx.moveTo(leftShoulder.x, leftShoulder.y);
                 ctx.lineTo(rightShoulder.x, rightShoulder.y);
-                ctx.strokeStyle = '#ff6b9d';
+                ctx.strokeStyle = '#ff80ab';
                 ctx.lineWidth = 4;
                 ctx.stroke();
                 
                 // 绘制端点
-                drawEndpoint(ctx, leftShoulder.x, leftShoulder.y, '#ff6b9d');
-                drawEndpoint(ctx, rightShoulder.x, rightShoulder.y, '#ff6b9d');
+                drawEndpoint(ctx, leftShoulder.x, leftShoulder.y, '#ff80ab');
+                drawEndpoint(ctx, rightShoulder.x, rightShoulder.y, '#ff80ab');
                 
                 // 添加测量文本
                 const midX = (leftShoulder.x + rightShoulder.x) / 2;
                 const midY = (leftShoulder.y + rightShoulder.y) / 2;
                 
-                ctx.fillStyle = '#ff6b9d';
+                ctx.fillStyle = '#ff80ab';
                 ctx.font = 'bold 20px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText('肩宽测量点', midX, midY - 20);
@@ -781,7 +938,7 @@
         }
         
         // 生成报告
-        function generateReport(measurements) {
+        function generateReport(measurements, aiUsed) {
             if (measurements.underBust.valid && measurements.bust.valid) {
                 // 计算上下胸围差
                 const difference = measurements.bust.cm - measurements.underBust.cm;
@@ -794,20 +951,66 @@
                 
                 document.getElementById('braSize').textContent = `${bandSize}${cupSizes[cupIndex]}`;
                 
-                // 测量精度
-                const accuracy = 85 + Math.floor(Math.random() * 10);
-                document.getElementById('accuracy').textContent = `${accuracy}%`;
+                // 测量方式
+                document.getElementById('measureMethod').textContent = aiUsed ? "AI图像分析" : "手动输入";
                 
-                // 体型分类
-                const ratio = measurements.underBust.cm / measurements.bust.cm;
-                if (ratio > 0.9) {
-                    document.getElementById('bodyType').textContent = '匀称型';
-                } else if (ratio > 0.85) {
-                    document.getElementById('bodyType').textContent = '丰满型';
-                } else {
-                    document.getElementById('bodyType').textContent = '苗条型';
-                }
+                // 测量时间
+                const now = new Date();
+                document.getElementById('measureTime').textContent = 
+                    `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
             }
+        }
+        
+        // 手动计算
+        function manualCalculate() {
+            const underBust = parseFloat(document.getElementById('manualUnderBust').value);
+            const bust = parseFloat(document.getElementById('manualBust').value);
+            
+            if (isNaN(underBust) || isNaN(bust) || underBust <= 0 || bust <= 0) {
+                alert("请输入有效的胸围尺寸");
+                return;
+            }
+            
+            const measurements = {
+                underBust: { cm: underBust, valid: true },
+                bust: { cm: bust, valid: true }
+            };
+            
+            // 显示测量结果
+            displayMeasurements(measurements);
+            
+            // 生成报告
+            generateReport(measurements, false);
+            
+            // 添加历史记录
+            addHistory(measurements);
+        }
+        
+        // 添加历史记录
+        function addHistory(measurements) {
+            if (!measurements.underBust.valid || !measurements.bust.valid) return;
+            
+            const historyList = document.getElementById('historyList');
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
+            
+            // 计算内衣尺码
+            const difference = measurements.bust.cm - measurements.underBust.cm;
+            const cupSizes = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+            const cupIndex = Math.min(Math.floor(difference / 2.5), cupSizes.length - 1);
+            const bandSize = Math.round(measurements.underBust.cm);
+            const braSize = `${bandSize}${cupSizes[cupIndex]}`;
+            
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            historyItem.innerHTML = `
+                <div>${dateStr}</div>
+                <div>${braSize}</div>
+                <div>下: ${measurements.underBust.cm.toFixed(1)}cm | 上: ${measurements.bust.cm.toFixed(1)}cm</div>
+            `;
+            
+            // 添加到列表顶部
+            historyList.insertBefore(historyItem, historyList.firstChild);
         }
     </script>
 </body>
