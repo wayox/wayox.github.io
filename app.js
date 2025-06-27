@@ -102,12 +102,69 @@ function handleFileSelect() {
         return;
     }
     
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        selectedImageDataUrl = e.target.result;
+    // 压缩图片
+    compressImage(file, {
+        maxWidth: 1024,       // 最大宽度
+        maxHeight: 1024,      // 最大高度
+        quality: 0.8,         // 压缩质量 (0.7-0.9之间)
+        outputFormat: 'image/jpeg' // 输出格式
+    }).then(compressedDataUrl => {
+        selectedImageDataUrl = compressedDataUrl;
         showPreview(selectedImageDataUrl);
-    };
-    reader.readAsDataURL(file);
+    }).catch(error => {
+        console.error('图片压缩失败:', error);
+        // 压缩失败时使用原始图片
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            selectedImageDataUrl = e.target.result;
+            showPreview(selectedImageDataUrl);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// 图片压缩函数
+function compressImage(file, options) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(file);
+        
+        img.onload = () => {
+            // 计算新尺寸
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            let width = img.width;
+            let height = img.height;
+            
+            // 按比例调整尺寸
+            if (width > options.maxWidth) {
+                height = (options.maxWidth / width) * height;
+                width = options.maxWidth;
+            }
+            if (height > options.maxHeight) {
+                width = (options.maxHeight / height) * width;
+                height = options.maxHeight;
+            }
+            
+            // 设置画布尺寸
+            canvas.width = width;
+            canvas.height = height;
+            
+            // 绘制压缩图片
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            try {
+                // 转换为Data URL
+                const compressedDataUrl = canvas.toDataURL(options.outputFormat, options.quality);
+                resolve(compressedDataUrl);
+            } catch (error) {
+                reject(error);
+            }
+        };
+        
+        img.onerror = reject;
+    });
 }
 
 // 显示预览
