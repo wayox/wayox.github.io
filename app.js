@@ -102,69 +102,13 @@ function handleFileSelect() {
         return;
     }
     
-    // 压缩图片
-    compressImage(file, {
-        maxWidth: 1024,       // 最大宽度
-        maxHeight: 1024,      // 最大高度
-        quality: 0.8,         // 压缩质量 (0.7-0.9之间)
-        outputFormat: 'image/jpeg' // 输出格式
-    }).then(compressedDataUrl => {
-        selectedImageDataUrl = compressedDataUrl;
+    // 直接读取图片（不压缩）
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        selectedImageDataUrl = e.target.result;
         showPreview(selectedImageDataUrl);
-    }).catch(error => {
-        console.error('图片压缩失败:', error);
-        // 压缩失败时使用原始图片
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            selectedImageDataUrl = e.target.result;
-            showPreview(selectedImageDataUrl);
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
-// 图片压缩函数
-function compressImage(file, options) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
-        
-        img.onload = () => {
-            // 计算新尺寸
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            let width = img.width;
-            let height = img.height;
-            
-            // 按比例调整尺寸
-            if (width > options.maxWidth) {
-                height = (options.maxWidth / width) * height;
-                width = options.maxWidth;
-            }
-            if (height > options.maxHeight) {
-                width = (options.maxHeight / height) * width;
-                height = options.maxHeight;
-            }
-            
-            // 设置画布尺寸
-            canvas.width = width;
-            canvas.height = height;
-            
-            // 绘制压缩图片
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            try {
-                // 转换为Data URL
-                const compressedDataUrl = canvas.toDataURL(options.outputFormat, options.quality);
-                resolve(compressedDataUrl);
-            } catch (error) {
-                reject(error);
-            }
-        };
-        
-        img.onerror = reject;
-    });
+    };
+    reader.readAsDataURL(file);
 }
 
 // 显示预览
@@ -204,8 +148,28 @@ function showLoading(imageDataUrl) {
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
     
+    // 安全设置 - 将所有安全类别设置为最低拦截级别
+    const safetySettings = [
+        {
+            "category": "HARM_CATEGORY_HARASSMENT",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_HATE_SPEECH",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            "threshold": "BLOCK_NONE"
+        },
+        {
+            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+            "threshold": "BLOCK_NONE"
+        }
+    ];
+    
     const payload = {
-        model: "models/gemini-2.5-flash",  // 指定新模型
+        model: "models/gemini-2.5-flash",
         contents: [{
             role: "user",
             parts: [
@@ -225,11 +189,12 @@ async function analyzeImage(imageDataUrl) {
             max_output_tokens: 2048,
             response_mime_type: "application/json"
         },
-        system_instruction: {  // 添加系统指令
+        system_instruction: {
             parts: [{
                 text: "你是一个专业的二次元内衣尺寸分析助手，请严格按照JSON格式返回分析结果"
             }]
-        }
+        },
+        safety_settings: safetySettings  // 添加安全设置
     };
     
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
