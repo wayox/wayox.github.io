@@ -3,20 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>胸围测量工具 - 稳定版</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+    <title>Gemini胸围测量工具 - 仅需上传图片</title>
+    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --primary: #7e57c2;
-            --primary-dark: #5e35b1;
-            --secondary: #ff80ab;
-            --light: #f5f3ff;
-            --dark: #311b92;
+            --primary: #4285f4;
+            --primary-dark: #1a73e8;
+            --secondary: #34a853;
+            --accent: #ea4335;
+            --light: #f8f9fa;
+            --dark: #202124;
             --card-bg: #ffffff;
-            --shadow: 0 8px 30px rgba(126, 87, 194, 0.15);
+            --shadow: 0 8px 30px rgba(66, 133, 244, 0.15);
             --radius: 18px;
             --transition: all 0.3s ease;
         }
@@ -25,55 +24,61 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: 'Google Sans', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
         }
         
         body {
-            background: linear-gradient(135deg, #ede7f6 0%, #f3e5f5 100%);
+            background: linear-gradient(135deg, #e8f0fe 0%, #f1f8ff 100%);
             color: var(--dark);
             line-height: 1.6;
             padding: 20px;
             min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 900px;
+            width: 100%;
             margin: 0 auto;
             padding: 20px;
         }
         
         header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             padding: 30px 20px;
         }
         
         h1 {
             color: var(--primary);
-            font-size: 2.8rem;
+            font-size: 2.5rem;
             margin-bottom: 15px;
             font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
         }
         
         .subtitle {
-            color: var(--secondary);
-            font-size: 1.3rem;
+            color: var(--dark);
+            font-size: 1.2rem;
             font-weight: 500;
             max-width: 700px;
             margin: 0 auto 25px;
         }
         
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 40px;
-        }
-        
-        @media (max-width: 900px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
+        .gemini-badge {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 1rem;
+            font-weight: 500;
+            display: inline-block;
+            margin-top: 10px;
         }
         
         .panel {
@@ -84,7 +89,7 @@
             transition: var(--transition);
             position: relative;
             overflow: hidden;
-            border: 1px solid rgba(126, 87, 194, 0.1);
+            border: 1px solid rgba(66, 133, 244, 0.1);
         }
         
         .panel::before {
@@ -119,20 +124,31 @@
         }
         
         .upload-area {
-            border: 2px dashed #d1c4e9;
+            border: 2px dashed #d2e3fc;
             border-radius: 18px;
             padding: 40px 30px;
             text-align: center;
             margin-bottom: 30px;
             transition: var(--transition);
-            background: #f5f3ff;
+            background: #f8faff;
             cursor: pointer;
+            position: relative;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
         
         .upload-area:hover {
             border-color: var(--primary);
-            background: #ede7f6;
+            background: #edf4ff;
             transform: translateY(-5px);
+        }
+        
+        .upload-area.active {
+            min-height: 100px;
+            padding: 20px;
         }
         
         .upload-icon {
@@ -163,23 +179,12 @@
             gap: 12px;
             margin-top: 20px;
             font-weight: 600;
-            box-shadow: 0 6px 20px rgba(126, 87, 194, 0.3);
+            box-shadow: 0 6px 20px rgba(66, 133, 244, 0.3);
         }
         
         .btn:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(126, 87, 194, 0.4);
-        }
-        
-        .btn-outline {
-            background: transparent;
-            border: 2px solid var(--primary);
-            color: var(--primary);
-            box-shadow: none;
-        }
-        
-        .btn-outline:hover {
-            background: rgba(126, 87, 194, 0.1);
+            box-shadow: 0 10px 30px rgba(66, 133, 244, 0.4);
         }
         
         .btn i {
@@ -191,10 +196,10 @@
             height: auto;
             border-radius: var(--radius);
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-            background: #f5f3ff;
+            background: #f8faff;
             display: none;
             margin-top: 20px;
-            border: 1px solid #e6e0ff;
+            border: 1px solid #e8f0fe;
         }
         
         .measurements-container {
@@ -205,14 +210,17 @@
         }
         
         .measurement-card {
-            background: linear-gradient(135deg, rgba(126, 87, 194, 0.05), rgba(255, 128, 171, 0.05));
+            background: linear-gradient(135deg, rgba(66, 133, 244, 0.05), rgba(52, 168, 83, 0.05));
             border-radius: 18px;
             padding: 30px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(126, 87, 194, 0.15);
+            border: 1px solid rgba(66, 133, 244, 0.15);
             transition: var(--transition);
             position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         
         .measurement-card:hover {
@@ -230,7 +238,7 @@
         .measurement-icon {
             width: 60px;
             height: 60px;
-            background: rgba(126, 87, 194, 0.1);
+            background: rgba(66, 133, 244, 0.1);
             border-radius: 16px;
             display: flex;
             align-items: center;
@@ -251,8 +259,8 @@
             text-align: center;
             margin: 20px 0;
             color: var(--primary);
-            font-family: 'Arial Rounded MT Bold', 'Segoe UI', sans-serif;
-            text-shadow: 0 2px 5px rgba(126, 87, 194, 0.2);
+            font-family: 'Google Sans', 'Segoe UI', sans-serif;
+            text-shadow: 0 2px 5px rgba(66, 133, 244, 0.2);
         }
         
         .measurement-range {
@@ -267,7 +275,7 @@
         .measurement-description {
             text-align: center;
             font-size: 1.1rem;
-            color: #5d4a6a;
+            color: #5d6a7a;
             line-height: 1.6;
             font-weight: 500;
         }
@@ -279,7 +287,7 @@
         }
         
         .spinner {
-            border: 5px solid #f3f0ff;
+            border: 5px solid #f3f7ff;
             border-top: 5px solid var(--primary);
             border-radius: 50%;
             width: 60px;
@@ -294,7 +302,7 @@
         }
         
         .result-section {
-            background: linear-gradient(135deg, rgba(126, 87, 194, 0.05), rgba(255, 128, 171, 0.05));
+            background: linear-gradient(135deg, rgba(66, 133, 244, 0.05), rgba(52, 168, 83, 0.05));
             border-radius: 18px;
             padding: 30px;
             margin-top: 30px;
@@ -307,6 +315,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            justify-content: center;
         }
         
         .result-content {
@@ -319,12 +328,12 @@
             display: flex;
             justify-content: space-between;
             padding: 12px 0;
-            border-bottom: 1px dashed rgba(126, 87, 194, 0.2);
+            border-bottom: 1px dashed rgba(66, 133, 244, 0.2);
         }
         
         .result-label {
             font-size: 1.1rem;
-            color: #5d4a6a;
+            color: #5d6a7a;
             font-weight: 500;
         }
         
@@ -334,78 +343,8 @@
             color: var(--primary);
         }
         
-        .info-section {
-            background: var(--card-bg);
-            border-radius: var(--radius);
-            padding: 40px;
-            margin-top: 40px;
-            box-shadow: var(--shadow);
-        }
-        
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            margin-top: 30px;
-        }
-        
-        .info-card {
-            background: #f5f3ff;
-            border-radius: 16px;
-            padding: 30px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(126, 87, 194, 0.1);
-            transition: var(--transition);
-        }
-        
-        .info-card:hover {
-            transform: translateY(-5px);
-            border-color: var(--primary);
-            box-shadow: 0 10px 30px rgba(126, 87, 194, 0.15);
-        }
-        
-        .info-card h3 {
-            color: var(--primary);
-            margin-bottom: 20px;
-            font-size: 1.4rem;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .info-card h3 i {
-            color: var(--secondary);
-            font-size: 24px;
-        }
-        
-        footer {
-            text-align: center;
-            margin-top: 50px;
-            color: #7d6a8f;
-            padding: 30px;
-            font-size: 1.1rem;
-        }
-        
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2.2rem;
-            }
-            
-            .subtitle {
-                font-size: 1.1rem;
-            }
-            
-            .panel {
-                padding: 25px;
-            }
-            
-            .result-content {
-                grid-template-columns: 1fr;
-            }
-        }
-        
         .model-status {
-            background: rgba(126, 87, 194, 0.1);
+            background: rgba(66, 133, 244, 0.1);
             border-radius: 12px;
             padding: 15px;
             margin-top: 20px;
@@ -418,7 +357,7 @@
         }
         
         .status-success {
-            color: #4caf50;
+            color: #34a853;
         }
         
         .status-loading {
@@ -426,70 +365,13 @@
         }
         
         .status-error {
-            color: #f44336;
-        }
-        
-        .manual-input {
-            background: rgba(255, 255, 255, 0.8);
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-        
-        .input-group {
-            margin-bottom: 15px;
-        }
-        
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: var(--dark);
-        }
-        
-        .input-group input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #d1c4e9;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: var(--transition);
-        }
-        
-        .input-group input:focus {
-            border-color: var(--primary);
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(126, 87, 194, 0.2);
-        }
-        
-        .history-section {
-            margin-top: 30px;
-        }
-        
-        .history-title {
-            color: var(--primary);
-            font-size: 1.3rem;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .history-item {
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-left: 4px solid var(--secondary);
+            color: var(--accent);
         }
         
         .progress-container {
             width: 100%;
             height: 12px;
-            background: #e6e0ff;
+            background: #e8f0fe;
             border-radius: 10px;
             margin: 20px 0;
             overflow: hidden;
@@ -502,174 +384,178 @@
             width: 0%;
             transition: width 0.5s ease;
         }
+        
+        .gemini-analysis {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid var(--secondary);
+        }
+        
+        .gemini-response {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+        
+        .gemini-logo {
+            width: 120px;
+            margin: 10px auto;
+            display: block;
+        }
+        
+        .image-preview {
+            max-width: 100%;
+            border-radius: 12px;
+            margin-top: 20px;
+            display: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+            }
+            
+            .panel {
+                padding: 25px;
+            }
+            
+            .result-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .measurement-value {
+                font-size: 2.5rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-ruler"></i> 胸围测量工具</h1>
-            <p class="subtitle">稳定版 - 解决模型加载问题，提供多种测量方式</p>
+            <h1><i class="fas fa-ruler"></i> Gemini胸围测量工具</h1>
+            <p class="subtitle">仅需上传图片，Gemini 1.5 Flash自动计算上下胸围</p>
+            <div class="gemini-badge">Gemini 1.5 Flash技术驱动</div>
         </header>
         
-        <div class="main-content">
-            <div class="panel">
-                <h2 class="panel-title"><i class="fas fa-camera"></i> 图像测量</h2>
+        <div class="panel">
+            <h2 class="panel-title"><i class="fas fa-camera"></i> 图片上传与分析</h2>
+            
+            <div class="upload-area" id="dropZone">
+                <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <h3>上传人体正面照片</h3>
+                <p>仅需一步：选择照片上传，Gemini自动完成测量</p>
+                <input type="file" id="imageUpload" accept="image/*" style="display:none;">
+                <button class="btn" id="uploadBtn"><i class="fas fa-upload"></i> 选择图片</button>
                 
-                <div class="upload-area" id="dropZone">
-                    <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                    <h3>上传人体正面照片</h3>
-                    <p>支持JPG、PNG格式 | 建议穿着贴身衣物</p>
-                    <p>确保上半身清晰可见，自然站立姿势</p>
-                    <input type="file" id="imageUpload" accept="image/*" style="display:none;">
-                    <button class="btn" id="uploadBtn"><i class="fas fa-upload"></i> 选择图片</button>
+                <div class="gemini-logo">
+                    <svg viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#4285f4"/>
+                        <circle cx="35" cy="35" r="15" fill="#ea4335"/>
+                        <circle cx="65" cy="35" r="15" fill="#fbbc05"/>
+                        <circle cx="35" cy="65" r="15" fill="#34a853"/>
+                        <circle cx="65" cy="65" r="15" fill="#4285f4"/>
+                    </svg>
                 </div>
-                
-                <div class="model-status">
-                    <div class="status-icon">
-                        <i class="fas fa-circle-notch status-loading" id="modelStatusIcon"></i>
-                    </div>
-                    <p id="modelStatusText">正在加载AI模型...</p>
-                    <div class="progress-container">
-                        <div class="progress-bar" id="modelProgress"></div>
-                    </div>
-                    <button class="btn btn-outline" id="retryModelBtn" style="display:none; margin-top:15px;">
-                        <i class="fas fa-sync-alt"></i> 重新加载模型
-                    </button>
-                </div>
-                
-                <div class="loading" id="loadingIndicator">
-                    <div class="spinner"></div>
-                    <p id="loadingText">正在分析图像，请稍候...</p>
-                </div>
-                
-                <canvas id="canvas"></canvas>
             </div>
             
-            <div class="panel">
-                <h2 class="panel-title"><i class="fas fa-chart-pie"></i> 测量结果</h2>
+            <div class="model-status">
+                <div class="status-icon">
+                    <i class="fas fa-circle-notch status-loading" id="modelStatusIcon"></i>
+                </div>
+                <p id="modelStatusText">正在连接Gemini 1.5 Flash服务...</p>
+                <div class="progress-container">
+                    <div class="progress-bar" id="modelProgress"></div>
+                </div>
+            </div>
+            
+            <img id="imagePreview" class="image-preview" alt="预览">
+            
+            <div class="loading" id="loadingIndicator">
+                <div class="spinner"></div>
+                <p id="loadingText">Gemini正在分析图像，请稍候...</p>
+            </div>
+            
+            <div class="measurements-container" id="resultsContainer" style="display: none;">
+                <div class="measurement-card">
+                    <div class="measurement-header">
+                        <div class="measurement-icon">
+                            <i class="fas fa-venus"></i>
+                        </div>
+                        <div class="measurement-title">下胸围测量结果</div>
+                    </div>
+                    <div class="measurement-value" id="underBustValue">-- cm</div>
+                    <div class="measurement-range">标准范围: 70-85cm</div>
+                    <div class="measurement-description">乳房下缘水平围长，内衣底围参考值</div>
+                </div>
                 
-                <div class="measurements-container">
-                    <div class="measurement-card">
-                        <div class="measurement-header">
-                            <div class="measurement-icon">
-                                <i class="fas fa-venus"></i>
-                            </div>
-                            <div class="measurement-title">下胸围测量结果</div>
+                <div class="measurement-card">
+                    <div class="measurement-header">
+                        <div class="measurement-icon">
+                            <i class="fas fa-venus-double"></i>
                         </div>
-                        <div class="measurement-value" id="underBustValue">-- cm</div>
-                        <div class="measurement-range">标准范围: 70-85cm</div>
-                        <div class="measurement-description">乳房下缘水平围长，内衣底围参考值</div>
+                        <div class="measurement-title">上胸围测量结果</div>
                     </div>
-                    
-                    <div class="measurement-card">
-                        <div class="measurement-header">
-                            <div class="measurement-icon">
-                                <i class="fas fa-venus-double"></i>
-                            </div>
-                            <div class="measurement-title">上胸围测量结果</div>
+                    <div class="measurement-value" id="bustValue">-- cm</div>
+                    <div class="measurement-range">标准范围: 80-100cm</div>
+                    <div class="measurement-description">乳房最丰满处水平围长，内衣罩杯参考值</div>
+                </div>
+                
+                <div class="result-section">
+                    <h3 class="result-title"><i class="fas fa-info-circle"></i> 分析报告</h3>
+                    <div class="result-content">
+                        <div class="result-item">
+                            <span class="result-label">上下胸围差:</span>
+                            <span class="result-value" id="differenceValue">-- cm</span>
                         </div>
-                        <div class="measurement-value" id="bustValue">-- cm</div>
-                        <div class="measurement-range">标准范围: 80-100cm</div>
-                        <div class="measurement-description">乳房最丰满处水平围长，内衣罩杯参考值</div>
-                    </div>
-                    
-                    <div class="result-section">
-                        <h3 class="result-title"><i class="fas fa-info-circle"></i> 胸围分析报告</h3>
-                        <div class="result-content">
-                            <div class="result-item">
-                                <span class="result-label">上下胸围差:</span>
-                                <span class="result-value" id="differenceValue">-- cm</span>
-                            </div>
-                            <div class="result-item">
-                                <span class="result-label">建议内衣尺码:</span>
-                                <span class="result-value" id="braSize">--</span>
-                            </div>
-                            <div class="result-item">
-                                <span class="result-label">测量方式:</span>
-                                <span class="result-value" id="measureMethod">--</span>
-                            </div>
-                            <div class="result-item">
-                                <span class="result-label">测量时间:</span>
-                                <span class="result-value" id="measureTime">--</span>
-                            </div>
+                        <div class="result-item">
+                            <span class="result-label">建议内衣尺码:</span>
+                            <span class="result-value" id="braSize">--</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">测量精度:</span>
+                            <span class="result-value" id="accuracy">--</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">分析用时:</span>
+                            <span class="result-value" id="analysisTime">--</span>
                         </div>
                     </div>
-                    
-                    <div class="manual-input">
-                        <h3 class="result-title"><i class="fas fa-ruler-combined"></i> 手动输入测量值</h3>
-                        <div class="input-group">
-                            <label for="manualUnderBust">下胸围 (cm)</label>
-                            <input type="number" id="manualUnderBust" placeholder="输入下胸围尺寸">
-                        </div>
-                        <div class="input-group">
-                            <label for="manualBust">上胸围 (cm)</label>
-                            <input type="number" id="manualBust" placeholder="输入上胸围尺寸">
-                        </div>
-                        <button class="btn" id="manualSubmit">
-                            <i class="fas fa-calculator"></i> 计算内衣尺码
-                        </button>
-                    </div>
-                    
-                    <div class="history-section">
-                        <h3 class="history-title"><i class="fas fa-history"></i> 历史记录</h3>
-                        <div id="historyList">
-                            <div class="history-item">
-                                <div>2023-10-15</div>
-                                <div>75B</div>
-                                <div>下: 75cm | 上: 87cm</div>
-                            </div>
-                            <div class="history-item">
-                                <div>2023-09-28</div>
-                                <div>75A</div>
-                                <div>下: 74cm | 上: 83cm</div>
-                            </div>
-                        </div>
+                </div>
+                
+                <div class="gemini-analysis">
+                    <h3 class="result-title"><i class="fab fa-google"></i> Gemini专业建议</h3>
+                    <div class="gemini-response" id="geminiResponse">
+                        上传照片后，Gemini将提供专业的胸围分析和建议。
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="info-section">
-            <h2><i class="fas fa-lightbulb"></i> 测量原理与技术</h2>
-            <div class="info-grid">
-                <div class="info-card">
-                    <h3><i class="fas fa-project-diagram"></i> 模型加载优化</h3>
-                    <p>采用多级重试机制，支持模型缓存，提供加载进度显示。当AI模型加载失败时自动切换到备用手动模式。</p>
-                </div>
-                <div class="info-card">
-                    <h3><i class="fas fa-ruler-combined"></i> 胸围计算算法</h3>
-                    <p>基于肩宽、躯干比例和关键点空间关系，通过专业算法计算上下胸围尺寸，误差范围±3cm。</p>
-                </div>
-                <div class="info-card">
-                    <h3><i class="fas fa-history"></i> 历史记录功能</h3>
-                    <p>自动保存测量记录，方便追踪变化。数据仅存储在浏览器本地，保护用户隐私。</p>
-                </div>
-                <div class="info-card">
-                    <h3><i class="fas fa-user-shield"></i> 隐私保护</h3>
-                    <p>所有图像处理均在浏览器本地完成，您的照片不会被上传到任何服务器。</p>
-                </div>
-            </div>
-        </div>
-        
-        <footer>
-            <p>基于TensorFlow.js BlazePose模型开发 | 数据在浏览器本地处理，不会上传到服务器</p>
-            <p>注意：此工具提供参考性测量结果，实际内衣选购请咨询专业人士</p>
+        <footer style="text-align: center; margin-top: 40px; color: #70757a; font-size: 0.9rem;">
+            <p>基于Google Gemini 1.5 Flash模型开发 | 仅需上传图片即可获得测量结果</p>
+            <p>注意：测量结果仅供参考，实际内衣选购请咨询专业人士</p>
         </footer>
     </div>
 
     <script>
-        // 人体关键点索引
-        const KEYPOINTS = {
-            LEFT_SHOULDER: 11,
-            RIGHT_SHOULDER: 12,
-            LEFT_HIP: 23,
-            RIGHT_HIP: 24
-        };
+        // 使用Google的Generative AI SDK
+        const genAI = new GoogleGenerativeAI('AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw'); // 实际使用中替换为你的API密钥
         
-        let detector;
+        // 模型状态管理
+        let geminiModel;
         let modelLoaded = false;
-        let modelLoadAttempts = 0;
-        const MAX_ATTEMPTS = 3;
         
         // 初始化页面
         window.onload = async () => {
@@ -678,28 +564,15 @@
                 document.getElementById('imageUpload').click();
             });
             
-            // 设置手动提交按钮
-            document.getElementById('manualSubmit').addEventListener('click', manualCalculate);
-            
-            // 设置模型重试按钮
-            document.getElementById('retryModelBtn').addEventListener('click', loadModel);
-            
             // 初始化模型
             await loadModel();
         };
         
-        // 加载模型
+        // 加载Gemini模型
         async function loadModel() {
             const statusIcon = document.getElementById('modelStatusIcon');
             const statusText = document.getElementById('modelStatusText');
             const progressBar = document.getElementById('modelProgress');
-            const retryBtn = document.getElementById('retryModelBtn');
-            
-            modelLoadAttempts++;
-            statusIcon.className = "fas fa-circle-notch fa-spin status-loading";
-            statusText.textContent = `正在加载AI模型 (尝试 ${modelLoadAttempts}/${MAX_ATTEMPTS})...`;
-            progressBar.style.width = "0%";
-            retryBtn.style.display = "none";
             
             try {
                 // 模拟进度条
@@ -708,30 +581,23 @@
                     progressBar.style.width = `${i}%`;
                 }
                 
-                // 尝试加载模型
-                detector = await poseDetection.createDetector(
-                    poseDetection.SupportedModels.BlazePose, {
-                        runtime: 'tfjs',
-                        modelType: 'lite',
-                        enableSmoothing: true
+                // 加载Gemini 1.5 Flash模型
+                geminiModel = await genAI.getGenerativeModel({ 
+                    model: "gemini-1.5-flash",
+                    generationConfig: {
+                        maxOutputTokens: 300
                     }
-                );
+                });
                 
                 modelLoaded = true;
                 statusIcon.className = "fas fa-check-circle status-success";
-                statusText.textContent = "AI模型加载成功！";
-                console.log("姿态检测模型加载成功");
+                statusText.textContent = "Gemini 1.5 Flash已就绪，请上传照片";
+                console.log("Gemini模型加载成功");
             } catch (error) {
-                if (modelLoadAttempts < MAX_ATTEMPTS) {
-                    statusText.textContent = `模型加载失败，5秒后重试 (${modelLoadAttempts}/${MAX_ATTEMPTS})...`;
-                    setTimeout(loadModel, 5000);
-                } else {
-                    modelLoaded = false;
-                    statusIcon.className = "fas fa-exclamation-triangle status-error";
-                    statusText.textContent = "模型加载失败，已启用备用手动模式";
-                    retryBtn.style.display = "inline-flex";
-                    console.error("模型加载失败:", error);
-                }
+                modelLoaded = false;
+                statusIcon.className = "fas fa-exclamation-triangle status-error";
+                statusText.textContent = "模型连接失败，请刷新页面重试";
+                console.error("Gemini模型加载失败:", error);
             }
         }
         
@@ -743,274 +609,137 @@
             const loadingIndicator = document.getElementById('loadingIndicator');
             const loadingText = document.getElementById('loadingText');
             loadingIndicator.style.display = 'block';
-            loadingText.textContent = "正在分析图像，请稍候...";
+            loadingText.textContent = "Gemini正在分析图像，请稍候...";
             
-            // 重置结果
-            resetResults();
+            // 显示上传的图片
+            const imagePreview = document.getElementById('imagePreview');
+            imagePreview.src = URL.createObjectURL(file);
+            imagePreview.style.display = 'block';
             
-            const img = new Image();
-            img.onload = async () => {
-                try {
-                    const canvas = document.getElementById('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-                    canvas.style.display = 'block';
-                    
-                    let keypoints = [];
-                    
-                    if (modelLoaded) {
-                        // 检测姿态
-                        const poses = await detector.estimatePoses(img);
-                        keypoints = poses?.[0]?.keypoints ?? [];
-                        
-                        // 绘制关键点
-                        drawKeypoints(ctx, keypoints);
-                    }
-                    
-                    // 计算胸围测量值
-                    const measurements = calculateBustMeasurements(keypoints);
-                    
-                    // 显示测量结果
-                    displayMeasurements(measurements);
-                    
-                    // 在图像上绘制测量线
-                    if (modelLoaded) {
-                        drawMeasurementLines(ctx, keypoints, measurements);
-                    }
-                    
-                    // 生成报告
-                    generateReport(measurements, modelLoaded);
-                    
-                    // 添加历史记录
-                    addHistory(measurements);
-                    
-                } catch (error) {
-                    console.error("分析过程中出错:", error);
-                    loadingText.textContent = "分析失败，请尝试其他图片或使用手动输入";
-                } finally {
-                    loadingIndicator.style.display = 'none';
-                }
-            };
+            // 更新上传区域
+            const dropZone = document.getElementById('dropZone');
+            dropZone.classList.add('active');
+            dropZone.innerHTML = `
+                <div class="upload-icon"><i class="fas fa-check-circle" style="color:#34a853;"></i></div>
+                <h3>已选择照片</h3>
+                <p>${file.name}</p>
+            `;
             
-            img.src = URL.createObjectURL(file);
+            try {
+                // 使用Gemini分析图像
+                const measurements = await analyzeImageWithGemini(file);
+                
+                // 显示测量结果
+                displayMeasurements(measurements);
+                
+                // 显示结果容器
+                document.getElementById('resultsContainer').style.display = 'flex';
+                
+            } catch (error) {
+                console.error("分析过程中出错:", error);
+                loadingText.textContent = "分析失败，请尝试其他图片";
+                document.getElementById('geminiResponse').textContent = "Gemini分析失败：" + error.message;
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
         });
         
-        // 绘制关键点
-        function drawKeypoints(ctx, keypoints) {
-            keypoints.forEach((pt, index) => {
-                if (pt.score > 0.3) {
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, 6, 0, 2 * Math.PI);
-                    
-                    // 肩部和髋部使用不同颜色
-                    if (index === KEYPOINTS.LEFT_SHOULDER || index === KEYPOINTS.RIGHT_SHOULDER) {
-                        ctx.fillStyle = '#ff80ab';
-                    } else if (index === KEYPOINTS.LEFT_HIP || index === KEYPOINTS.RIGHT_HIP) {
-                        ctx.fillStyle = '#7e57c2';
-                    } else {
-                        ctx.fillStyle = '#5c6bc0';
-                    }
-                    
-                    ctx.fill();
-                }
-            });
-        }
-        
-        // 重置结果
-        function resetResults() {
-            document.getElementById('underBustValue').textContent = '-- cm';
-            document.getElementById('bustValue').textContent = '-- cm';
-            document.getElementById('differenceValue').textContent = '-- cm';
-            document.getElementById('braSize').textContent = '--';
-            document.getElementById('measureMethod').textContent = '--';
-            document.getElementById('measureTime').textContent = '--';
-        }
-        
-        // 计算胸围测量值
-        function calculateBustMeasurements(keypoints) {
-            const results = {
-                underBust: { cm: 0, valid: false },
-                bust: { cm: 0, valid: false }
-            };
-            
-            // 获取肩部关键点
-            const leftShoulder = keypoints[KEYPOINTS.LEFT_SHOULDER];
-            const rightShoulder = keypoints[KEYPOINTS.RIGHT_SHOULDER];
-            
-            // 获取髋部关键点
-            const leftHip = keypoints[KEYPOINTS.LEFT_HIP];
-            const rightHip = keypoints[KEYPOINTS.RIGHT_HIP];
-            
-            // 计算肩宽（像素）
-            if (leftShoulder && rightShoulder && 
-                leftShoulder.score > 0.3 && rightShoulder.score > 0.3) {
-                
-                const shoulderDx = rightShoulder.x - leftShoulder.x;
-                const shoulderDy = rightShoulder.y - leftShoulder.y;
-                const shoulderDistance = Math.sqrt(shoulderDx * shoulderDx + shoulderDy * shoulderDy);
-                
-                // 计算髋宽（像素）
-                let hipDistance = 0;
-                if (leftHip && rightHip && 
-                    leftHip.score > 0.3 && rightHip.score > 0.3) {
-                    const hipDx = rightHip.x - leftHip.x;
-                    const hipDy = rightHip.y - leftHip.y;
-                    hipDistance = Math.sqrt(hipDx * hipDx + hipDy * hipDy);
-                }
-                
-                // 估算下胸围（基于肩宽和髋宽）
-                const underBustPixels = shoulderDistance * 1.7 + hipDistance * 0.3;
-                const underBustCm = underBustPixels * 0.026458; // 像素转厘米
-                
-                results.underBust = {
-                    cm: underBustCm,
-                    valid: true,
-                    leftShoulder,
-                    rightShoulder
-                };
-                
-                // 估算上胸围（基于下胸围）
-                const bustCm = underBustCm + 8 + Math.random() * 4; // 模拟实际差异
-                results.bust = {
-                    cm: bustCm,
-                    valid: true
-                };
+        // 使用Gemini分析图像
+        async function analyzeImageWithGemini(file) {
+            if (!modelLoaded) {
+                throw new Error("模型未加载完成");
             }
             
-            return results;
+            // 将文件转换为base64
+            const reader = new FileReader();
+            const base64Data = await new Promise((resolve) => {
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+            
+            // 记录开始时间
+            const startTime = new Date();
+            
+            // 构建Gemini请求
+            const prompt = `你是一个专业的身体测量AI。请分析这张人体正面照片，精确测量以下两个尺寸（以厘米为单位）：
+            1. 下胸围：乳房下缘水平围长
+            2. 上胸围：乳房最丰满处水平围长
+            
+            同时请提供：
+            - 上下胸围差
+            - 建议的内衣尺码（例如：75B）
+            - 对测量精度的估计（0-100%）
+            - 简要的专业建议
+            
+            请以JSON格式返回结果，包含以下字段：
+            {
+                "underBust": 数值,
+                "bust": 数值,
+                "difference": 数值,
+                "braSize": "尺码",
+                "accuracy": 数值,
+                "advice": "建议文本"
+            }`;
+            
+            // 发送请求到Gemini
+            const result = await geminiModel.generateContent([
+                { 
+                    text: prompt 
+                },
+                {
+                    inlineData: {
+                        mimeType: file.type,
+                        data: base64Data
+                    }
+                }
+            ]);
+            
+            // 计算分析用时
+            const endTime = new Date();
+            const analysisTime = ((endTime - startTime) / 1000).toFixed(1);
+            document.getElementById('analysisTime').textContent = `${analysisTime}秒`;
+            
+            const response = result.response;
+            const text = response.text();
+            
+            // 尝试解析JSON响应
+            try {
+                const jsonStart = text.indexOf('{');
+                const jsonEnd = text.lastIndexOf('}') + 1;
+                const jsonStr = text.substring(jsonStart, jsonEnd);
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                // 如果无法解析为JSON，显示原始响应
+                document.getElementById('geminiResponse').textContent = text;
+                throw new Error("无法解析Gemini的响应");
+            }
         }
         
         // 显示测量结果
         function displayMeasurements(measurements) {
-            if (measurements.underBust.valid) {
-                document.getElementById('underBustValue').textContent = `${measurements.underBust.cm.toFixed(1)} cm`;
+            if (measurements.underBust) {
+                document.getElementById('underBustValue').textContent = `${measurements.underBust} cm`;
             }
             
-            if (measurements.bust.valid) {
-                document.getElementById('bustValue').textContent = `${measurements.bust.cm.toFixed(1)} cm`;
-            }
-        }
-        
-        // 在图像上绘制测量线
-        function drawMeasurementLines(ctx, keypoints, measurements) {
-            // 绘制肩宽线
-            const leftShoulder = keypoints[KEYPOINTS.LEFT_SHOULDER];
-            const rightShoulder = keypoints[KEYPOINTS.RIGHT_SHOULDER];
-            
-            if (leftShoulder && rightShoulder && 
-                leftShoulder.score > 0.3 && rightShoulder.score > 0.3) {
-                
-                // 绘制连接线
-                ctx.beginPath();
-                ctx.moveTo(leftShoulder.x, leftShoulder.y);
-                ctx.lineTo(rightShoulder.x, rightShoulder.y);
-                ctx.strokeStyle = '#ff80ab';
-                ctx.lineWidth = 4;
-                ctx.stroke();
-                
-                // 绘制端点
-                drawEndpoint(ctx, leftShoulder.x, leftShoulder.y, '#ff80ab');
-                drawEndpoint(ctx, rightShoulder.x, rightShoulder.y, '#ff80ab');
-                
-                // 添加测量文本
-                const midX = (leftShoulder.x + rightShoulder.x) / 2;
-                const midY = (leftShoulder.y + rightShoulder.y) / 2;
-                
-                ctx.fillStyle = '#ff80ab';
-                ctx.font = 'bold 20px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('肩宽测量点', midX, midY - 20);
-            }
-        }
-        
-        // 绘制端点
-        function drawEndpoint(ctx, x, y, color) {
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, 2 * Math.PI);
-            ctx.fillStyle = color;
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        }
-        
-        // 生成报告
-        function generateReport(measurements, aiUsed) {
-            if (measurements.underBust.valid && measurements.bust.valid) {
-                // 计算上下胸围差
-                const difference = measurements.bust.cm - measurements.underBust.cm;
-                document.getElementById('differenceValue').textContent = `${difference.toFixed(1)} cm`;
-                
-                // 建议内衣尺码
-                const cupSizes = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-                const cupIndex = Math.min(Math.floor(difference / 2.5), cupSizes.length - 1);
-                const bandSize = Math.round(measurements.underBust.cm);
-                
-                document.getElementById('braSize').textContent = `${bandSize}${cupSizes[cupIndex]}`;
-                
-                // 测量方式
-                document.getElementById('measureMethod').textContent = aiUsed ? "AI图像分析" : "手动输入";
-                
-                // 测量时间
-                const now = new Date();
-                document.getElementById('measureTime').textContent = 
-                    `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            }
-        }
-        
-        // 手动计算
-        function manualCalculate() {
-            const underBust = parseFloat(document.getElementById('manualUnderBust').value);
-            const bust = parseFloat(document.getElementById('manualBust').value);
-            
-            if (isNaN(underBust) || isNaN(bust) || underBust <= 0 || bust <= 0) {
-                alert("请输入有效的胸围尺寸");
-                return;
+            if (measurements.bust) {
+                document.getElementById('bustValue').textContent = `${measurements.bust} cm`;
             }
             
-            const measurements = {
-                underBust: { cm: underBust, valid: true },
-                bust: { cm: bust, valid: true }
-            };
+            if (measurements.difference) {
+                document.getElementById('differenceValue').textContent = `${measurements.difference} cm`;
+            }
             
-            // 显示测量结果
-            displayMeasurements(measurements);
+            if (measurements.braSize) {
+                document.getElementById('braSize').textContent = measurements.braSize;
+            }
             
-            // 生成报告
-            generateReport(measurements, false);
+            if (measurements.accuracy) {
+                document.getElementById('accuracy').textContent = `${measurements.accuracy}%`;
+            }
             
-            // 添加历史记录
-            addHistory(measurements);
-        }
-        
-        // 添加历史记录
-        function addHistory(measurements) {
-            if (!measurements.underBust.valid || !measurements.bust.valid) return;
-            
-            const historyList = document.getElementById('historyList');
-            const now = new Date();
-            const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')}`;
-            
-            // 计算内衣尺码
-            const difference = measurements.bust.cm - measurements.underBust.cm;
-            const cupSizes = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-            const cupIndex = Math.min(Math.floor(difference / 2.5), cupSizes.length - 1);
-            const bandSize = Math.round(measurements.underBust.cm);
-            const braSize = `${bandSize}${cupSizes[cupIndex]}`;
-            
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.innerHTML = `
-                <div>${dateStr}</div>
-                <div>${braSize}</div>
-                <div>下: ${measurements.underBust.cm.toFixed(1)}cm | 上: ${measurements.bust.cm.toFixed(1)}cm</div>
-            `;
-            
-            // 添加到列表顶部
-            historyList.insertBefore(historyItem, historyList.firstChild);
+            if (measurements.advice) {
+                document.getElementById('geminiResponse').textContent = measurements.advice;
+            }
         }
     </script>
 </body>
