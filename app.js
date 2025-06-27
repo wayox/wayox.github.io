@@ -148,7 +148,7 @@ async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
     
     const payload = {
-        model: "models/gemini-1.5-flash",  // 指定新模型
+        model: "models/gemini-2.5-flash",  // 指定新模型
         contents: [{
             role: "user",
             parts: [
@@ -170,12 +170,12 @@ async function analyzeImage(imageDataUrl) {
         },
         system_instruction: {  // 添加系统指令
             parts: [{
-                text: "你是一个专业的内衣尺寸分析助手，请严格按照JSON格式返回分析结果"
+                text: "你是一个专业的二次元内衣尺寸分析助手，请严格按照JSON格式返回分析结果"
             }]
         }
     };
     
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
