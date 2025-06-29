@@ -161,7 +161,6 @@ async function analyzeImage(imageDataUrl) {
         safety_settings: safetySettings
     };
     
-    // 使用当前推荐的 flash 模型，如果API密钥权限不同，可更换为 gemini-pro-vision
     const model = 'gemini-2.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`;
     // --- 修正部分结束 ---
