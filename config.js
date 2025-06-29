@@ -1,6 +1,6 @@
 // config.js
 
-export const API_KEY = 'YOUR_API_KEY'; // 在此处粘贴你的Google AI API密钥
+export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw'; // 在此处粘贴你的Google AI API密钥
 
 export const systemPrompts = {
     standard: `你是一个顶级的二次元角色数据分析专家，请根据用户提供的角色图片估算其详细的身体数据。
