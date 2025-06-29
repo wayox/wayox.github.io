@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>二次元角色胸围测量</title>
+    <title>二次元角色数据分析</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -13,8 +13,8 @@
     <div class="container">
         <button id="theme-toggle" class="theme-toggle" aria-label="切换主题">🌙</button>
         <header>
-            <h1>二次元角色胸围测量</h1>
-            <p class="subtitle">上传角色图片，AI智能分析胸围尺寸</p>
+            <h1>二次元角色数据分析</h1>
+            <p class="subtitle">上传角色图片，AI智能分析身高、体重、三围等数据</p>
         </header>
         
         <div class="disclaimer" id="disclaimer">
@@ -50,23 +50,46 @@
             
             <div id="loading" class="loading">
                 <div class="spinner"></div>
-                <p>AI正在分析角色胸围...</p>
+                <p>AI正在分析角色数据...</p>
             </div>
             
             <div id="result" class="result hidden">
                 <div class="verdict-container">
-                    <h2 id="verdict">胸围估算</h2>
+                    <h2 id="verdict">分析报告</h2>
                     <div id="verdict-icon">📏</div>
                 </div>
                 
                 <div class="size-comparison">
+                    <!-- 身体基本数据 -->
+                    <div class="size-item">
+                        <div class="value" id="height">--</div>
+                        <div class="label">身高</div>
+                    </div>
+                    <div class="size-item">
+                        <div class="value" id="weight">--</div>
+                        <div class="label">体重</div>
+                    </div>
+                    <div class="size-item">
+                        <div class="value" id="age">--</div>
+                        <div class="label">年龄</div>
+                    </div>
+                    <!-- BWH 三围数据 -->
+                    <div class="size-item">
+                        <div class="value" id="overbust">--</div>
+                        <div class="label">Bust / 上胸围</div>
+                    </div>
+                    <div class="size-item">
+                        <div class="value" id="waist">--</div>
+                        <div class="label">Waist / 腰围</div>
+                    </div>
+                    <div class="size-item">
+                        <div class="value" id="hip">--</div>
+                        <div class="label">Hip / 臀围</div>
+                    </div>
+                    <!-- 内衣尺寸相关 -->
                     <div class="size-item">
                         <div class="value" id="underbust">--</div>
                         <div class="label">下胸围</div>
-                    </div>
-                    <div class="size-item">
-                        <div class="value" id="overbust">--</div>
-                        <div class="label">上胸围</div>
                     </div>
                     <div class="size-item">
                         <div class="value" id="cup-size">--</div>
