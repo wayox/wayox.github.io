@@ -139,8 +139,6 @@ async function analyzeImage(imageDataUrl) {
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
     
-    // --- 修正部分开始 ---
-    // `response_mime_type` 已被移出 `generation_config` 并放到顶层。
     const payload = {
         contents: [{
             parts: [
@@ -155,15 +153,14 @@ async function analyzeImage(imageDataUrl) {
         }],
         generation_config: {
             temperature: 0.3,
-            max_output_tokens: 2048
+            max_output_tokens: 2048,
+            responseMimeType: "application/json" 
         },
-        response_mime_type: "application/json", // 正确位置：与 `generation_config` 同级
         safety_settings: safetySettings
     };
     
-    const model = 'gemini-2.5-pro';
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${API_KEY}`;
-    // --- 修正部分结束 ---
+    const model = 'gemini-1.5-pro-latest'; 
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
     const response = await fetch(apiUrl, {
         method: 'POST',
