@@ -17,8 +17,15 @@ const elements = {
     result: document.getElementById('result'),
     verdict: document.getElementById('verdict'),
     verdictIcon: document.getElementById('verdict-icon'),
-    underbust: document.getElementById('underbust'),
+    // 基础数据
+    height: document.getElementById('height'),
+    weight: document.getElementById('weight'),
+    age: document.getElementById('age'),
+    // BWH + 内衣尺寸
     overbust: document.getElementById('overbust'),
+    waist: document.getElementById('waist'),
+    hip: document.getElementById('hip'),
+    underbust: document.getElementById('underbust'),
     cupSize: document.getElementById('cup-size'),
     cupFill: document.getElementById('cup-fill'),
     explanation: document.getElementById('explanation'),
@@ -35,55 +42,34 @@ function initialize() {
 
 // 设置事件监听
 function setupEventListeners() {
-    // 上传区域点击
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
-    
-    // 文件选择
     elements.fileInput.addEventListener('change', handleFileSelect);
-    
-    // 开始分析
     elements.startAnalysisBtn.addEventListener('click', handleStartAnalysis);
-    
-    // 更换图片
     elements.changeImageBtn.addEventListener('click', () => elements.fileInput.click());
-    
-    // 关闭免责声明
     elements.closeDisclaimerBtn.addEventListener('click', () => {
         elements.disclaimer.style.display = 'none';
     });
-    
-    // 切换主题
     elements.themeToggle.addEventListener('click', toggleTheme);
-    
-    // 重新分析
     elements.tryAgainBtn.addEventListener('click', handleTryAgain);
-    
-    // 保存结果
     elements.saveBtn.addEventListener('click', saveResult);
-    
-    // 拖拽功能
     setupDragAndDrop();
 }
 
 // 设置拖拽功能
 function setupDragAndDrop() {
     const dropZones = [elements.uploadArea];
-    
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
             zone.classList.add('drag-over');
         });
-        
         zone.addEventListener('dragleave', (e) => {
             e.preventDefault();
             zone.classList.remove('drag-over');
         });
-        
         zone.addEventListener('drop', (e) => {
             e.preventDefault();
             zone.classList.remove('drag-over');
-            
             if (e.dataTransfer.files.length) {
                 elements.fileInput.files = e.dataTransfer.files;
                 handleFileSelect();
@@ -95,14 +81,11 @@ function setupDragAndDrop() {
 // 处理文件选择
 function handleFileSelect() {
     if (!elements.fileInput.files.length) return;
-    
     const file = elements.fileInput.files[0];
     if (!file.type.startsWith('image/')) {
         alert('请选择图片文件');
         return;
     }
-    
-    // 直接读取图片（不压缩）
     const reader = new FileReader();
     reader.onload = (e) => {
         selectedImageDataUrl = e.target.result;
@@ -122,9 +105,7 @@ function showPreview(imageDataUrl) {
 // 开始分析
 async function handleStartAnalysis() {
     if (!selectedImageDataUrl) return;
-    
     showLoading(selectedImageDataUrl);
-    
     try {
         const result = await analyzeImage(selectedImageDataUrl);
         displayResult(result);
@@ -144,38 +125,20 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
-// 分析图片 - 使用gemini-1.5-flash模型
+// 分析图片 - 使用Gemini模型
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
-    
-    // 安全设置 - 将所有安全类别设置为最低拦截级别
     const safetySettings = [
-        {
-            "category": "HARM_CATEGORY_HARASSMENT",
-            "threshold": "BLOCK_NONE"
-        },
-        {
-            "category": "HARM_CATEGORY_HATE_SPEECH",
-            "threshold": "BLOCK_NONE"
-        },
-        {
-            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            "threshold": "BLOCK_NONE"
-        },
-        {
-            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-            "threshold": "BLOCK_NONE"
-        }
+        { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
     
     const payload = {
-        model: "models/gemini-2.5-pro",
         contents: [{
-            role: "user",
             parts: [
-                {
-                    text: systemPrompts.standard
-                },
+                { text: systemPrompts.standard },
                 {
                     inline_data: {
                         mime_type: "image/jpeg",
@@ -189,19 +152,12 @@ async function analyzeImage(imageDataUrl) {
             max_output_tokens: 2048,
             response_mime_type: "application/json"
         },
-        system_instruction: {
-            parts: [{
-                text: "你是一个专业的二次元内衣尺寸分析助手，会根据体积、乳沟、阴影等进行分析，请严格按照JSON格式返回分析结果"
-            }]
-        },
-        safety_settings: safetySettings  // 添加安全设置
+        safety_settings: safetySettings
     };
     
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
     
@@ -217,12 +173,11 @@ async function analyzeImage(imageDataUrl) {
         throw new Error('未收到有效的分析结果');
     }
     
-    // 尝试解析JSON
     try {
         return JSON.parse(text);
     } catch (error) {
-        console.error('解析JSON失败:', error);
-        throw new Error('分析结果格式错误');
+        console.error('解析JSON失败:', text);
+        throw new Error('分析结果格式错误，无法解析JSON。');
     }
 }
 
@@ -231,17 +186,28 @@ function displayResult(result) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
     
-    // 更新尺寸数据
-    elements.underbust.textContent = result.underbust !== undefined ? `${result.underbust}cm` : '--';
-    elements.overbust.textContent = result.overbust !== undefined ? `${result.overbust}cm` : '--';
+    // 更新基础数据：身高、体重、年龄
+    elements.height.textContent = result.height ? `${result.height}cm` : '--';
+    elements.weight.textContent = result.weight ? `${result.weight}kg` : '--';
+    elements.age.textContent = result.age ? `${result.age}岁` : '--';
+
+    // 更新BWH三围数据
+    elements.overbust.textContent = result.overbust ? `${result.overbust}cm` : '--';
+    elements.waist.textContent = result.waist ? `${result.waist}cm` : '--';
+    elements.hip.textContent = result.hip ? `${result.hip}cm` : '--';
+
+    // 更新内衣尺寸相关数据
+    elements.underbust.textContent = result.underbust ? `${result.underbust}cm` : '--';
     elements.cupSize.textContent = result.cupSize || '--';
     
     // 更新罩杯图表
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
-    const cupIndex = result.cupSize ? cupSizes.indexOf(result.cupSize) : -1;
+    const cupIndex = result.cupSize ? cupSizes.indexOf(result.cupSize.toUpperCase()) : -1;
     if (cupIndex >= 0) {
         const cupWidth = Math.min(100, (cupIndex + 1) * (100 / cupSizes.length));
         elements.cupFill.style.width = `${cupWidth}%`;
+    } else {
+        elements.cupFill.style.width = '0%';
     }
     
     // 更新解释文本
@@ -253,12 +219,18 @@ function displayError() {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
     
-    elements.underbust.textContent = '--';
+    // 重置所有数据
+    elements.height.textContent = '--';
+    elements.weight.textContent = '--';
+    elements.age.textContent = '--';
     elements.overbust.textContent = '--';
+    elements.waist.textContent = '--';
+    elements.hip.textContent = '--';
+    elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
     elements.cupFill.style.width = '0';
     
-    elements.explanation.innerHTML = '分析失败，请尝试更换图片或稍后再试。';
+    elements.explanation.innerHTML = '分析失败，请尝试更换图片或稍后再试。<br>可能原因：图片无法识别、网络问题或API限制。';
 }
 
 // 重新分析
