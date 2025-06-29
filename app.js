@@ -1,4 +1,5 @@
 import { API_KEY, systemPrompts } from './config.js';
+
 const elements = {
     uploadArea: document.getElementById('upload-area'),
     fileInput: document.getElementById('file-input'),
@@ -28,15 +29,21 @@ const elements = {
     tryAgainBtn: document.getElementById('try-again'),
     saveBtn: document.getElementById('save-btn')
 };
+
 let selectedImageDataUrl = null;
+
 function initialize() {
     setupEventListeners();
 }
+
 function setupEventListeners() {
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
     elements.fileInput.addEventListener('change', handleFileSelect);
     elements.startAnalysisBtn.addEventListener('click', handleStartAnalysis);
-    elements.changeImageBtn.addEventListener('click', () => elements.fileInput.click());
+    elements.changeImageBtn.addEventListener('click', () => {
+        resetToUpload();
+        elements.fileInput.click();
+    });
     elements.closeDisclaimerBtn.addEventListener('click', () => {
         elements.disclaimer.style.display = 'none';
     });
@@ -45,20 +52,27 @@ function setupEventListeners() {
     elements.saveBtn.addEventListener('click', saveResult);
     setupDragAndDrop();
 }
+
 function setupDragAndDrop() {
-    const dropZones = [elements.uploadArea];
+    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            zone.classList.add('drag-over');
+            if (zone === elements.uploadArea) {
+                zone.classList.add('drag-over');
+            }
         });
         zone.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            zone.classList.remove('drag-over');
+            if (zone === elements.uploadArea) {
+                zone.classList.remove('drag-over');
+            }
         });
         zone.addEventListener('drop', (e) => {
             e.preventDefault();
-            zone.classList.remove('drag-over');
+            if (zone === elements.uploadArea) {
+                zone.classList.remove('drag-over');
+            }
             if (e.dataTransfer.files.length) {
                 elements.fileInput.files = e.dataTransfer.files;
                 handleFileSelect();
@@ -66,6 +80,8 @@ function setupDragAndDrop() {
         });
     });
 }
+
+
 function handleFileSelect() {
     if (!elements.fileInput.files.length) return;
     const file = elements.fileInput.files[0];
@@ -80,12 +96,14 @@ function handleFileSelect() {
     };
     reader.readAsDataURL(file);
 }
+
 function showPreview(imageDataUrl) {
     elements.previewImage.src = imageDataUrl;
     elements.uploadArea.classList.add('hidden');
     elements.previewContainer.classList.remove('hidden');
     elements.resultContainer.classList.add('hidden');
 }
+
 async function handleStartAnalysis() {
     if (!selectedImageDataUrl) return;
     showLoading(selectedImageDataUrl);
@@ -97,6 +115,7 @@ async function handleStartAnalysis() {
         displayError(error.message); 
     }
 }
+
 function showLoading(imageDataUrl) {
     elements.imagePreview.src = imageDataUrl;
     elements.uploadArea.classList.add('hidden');
@@ -105,6 +124,10 @@ function showLoading(imageDataUrl) {
     elements.loading.classList.remove('hidden');
     elements.result.classList.add('hidden');
 }
+
+// =================================================================
+// ============== 函数已修复，请注意以下修改 ==========================
+// =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
     const safetySettings = [
@@ -128,12 +151,14 @@ async function analyzeImage(imageDataUrl) {
         }],
         generation_config: {
             temperature: 0.3,
-            max_output_tokens: 2048,
+            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
+            max_output_tokens: 8192,
             responseMimeType: "application/json" 
         },
         safety_settings: safetySettings
     };
     
+    // 修复2: 使用当前有效的、强大的模型名称
     const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
@@ -158,19 +183,26 @@ async function analyzeImage(imageDataUrl) {
         throw new Error('API未返回任何分析结果，可能是图片无法识别。');
     }
     
-    const text = data.candidates[0]?.content?.parts[0]?.text;
+    let text = data.candidates[0]?.content?.parts[0]?.text;
     
     if (!text) {
         throw new Error('API返回内容中不包含有效的文本数据。');
     }
     
     try {
+        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
+        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            text = jsonMatch[0];
+        }
         return JSON.parse(text);
     } catch (parseError) {
-        console.error('解析JSON失败:', text);
-        throw new Error('分析结果格式错误，无法解析返回的JSON。');
+        console.error('解析JSON失败的原始文本:', text);
+        throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
     }
 }
+
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
@@ -192,6 +224,7 @@ function displayResult(resultData) {
     }
     elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
 }
+
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
@@ -205,21 +238,22 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.cupSize.textContent = '--';
     elements.cupFill.style.width = '0%';
     
-    elements.explanation.innerHTML = `${errorMessage.replace(/\n/g, '<br>')}`;
+    elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
-function handleTryAgain() {
-    elements.result.classList.add('hidden');
-    elements.loading.classList.remove('hidden');
 
-    if (selectedImageDataUrl) {
-        setTimeout(handleStartAnalysis, 200);
-    } else {
+function handleTryAgain() {
+    // 如果当前有分析结果，则直接重新分析
+    if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
+       handleStartAnalysis();
+    } else { // 否则，返回到上传界面
         resetToUpload();
     }
 }
+
 function saveResult() {
     alert('结果保存功能尚未实现');
 }
+
 function resetToUpload() {
     elements.previewContainer.classList.add('hidden');
     elements.resultContainer.classList.add('hidden');
@@ -227,6 +261,7 @@ function resetToUpload() {
     elements.fileInput.value = '';
     selectedImageDataUrl = null;
 }
+
 function toggleTheme() {
     document.body.classList.toggle('dark-mode');
     elements.themeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
