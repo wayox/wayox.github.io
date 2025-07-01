@@ -1,7 +1,9 @@
 // config.js
 
-export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw'; // 在此处粘贴你的Google AI API密钥
+// 1. 在此处粘贴你的 OpenAI API 密钥
+export const OPENAI_API_KEY = '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'; 
 
+// 2. 系统提示词保持不变
 export const systemPrompts = {
     standard: `你是一位顶级的、以严谨和洞察力著称的二次元角色概念美术设定师。你的任务是基于一张角色图，逆向工程出其精确的身体设定数据。
 
