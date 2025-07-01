@@ -1,35 +1,27 @@
-// functions/analyze.js
+// functions/analyze.js (已修正)
 
-// 这是我们的安全后端函数，它会接收前端发来的图片数据，
-// 然后在服务器端（安全地）添加 API 密钥，再发请求给 OpenAI。
 export async function onRequestPost(context) {
     try {
-        // 1. 从前端请求中获取图片数据
-        const { imageDataUrl } = await context.request.json();
+        // 1. 一次性从请求体中解析出所有需要的数据
+        const { imageDataUrl, systemPrompt } = await context.request.json();
         
-        if (!imageDataUrl) {
-            return new Response(JSON.stringify({ error: '未提供图片数据' }), {
+        if (!imageDataUrl || !systemPrompt) {
+            const missing = !imageDataUrl ? 'imageDataUrl' : 'systemPrompt';
+            return new Response(JSON.stringify({ error: `请求体中缺少 '${missing}'` }), {
                 status: 400,
                 headers: { 'Content-Type': 'application/json' },
             });
         }
 
         // 2. 从 Cloudflare 的环境变量中安全地获取 API 密钥
-        // 我们稍后会在 Cloudflare 网站上设置这个 'OPENAI_API_KEY'
         const apiKey = context.env.OPENAI_API_KEY;
         if (!apiKey) {
-             return new Response(JSON.stringify({ error: '服务器未配置 API 密钥' }), {
+             return new Response(JSON.stringify({ error: '服务器未配置 API 密钥。请检查 Cloudflare Pages 的环境变量设置。' }), {
                 status: 500,
                 headers: { 'Content-Type': 'application/json' },
             });
         }
-
-        // 3. 从前端请求中获取系统提示词 (systemPrompts)
-        // 注意: 这里我们假设 `systemPrompts.standard` 也在请求体中传递，
-        // 或者我们可以直接在函数中定义它以确保安全。为了简单起见，我们从请求中获取。
-        const { systemPrompt } = await context.request.json();
-
-
+        
         const apiUrl = 'https://api.openai.com/v1/chat/completions';
         const model = 'gpt-4o-mini';
 
@@ -38,7 +30,7 @@ export async function onRequestPost(context) {
             messages: [
                 {
                     role: "system",
-                    content: systemPrompt
+                    content: systemPrompt // 使用从前端传来的提示词
                 },
                 {
                     role: "user",
@@ -56,7 +48,7 @@ export async function onRequestPost(context) {
             max_tokens: 8192
         };
 
-        // 4. 代表前端去请求 OpenAI API
+        // 3. 代表前端去请求 OpenAI API
         const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
@@ -66,16 +58,16 @@ export async function onRequestPost(context) {
             body: JSON.stringify(payload)
         });
 
-        const data = await response.json();
-        
-        // 5. 将 OpenAI 的结果直接返回给前端
-        return new Response(JSON.stringify(data), {
+        // 4. 将 OpenAI 的原始响应直接返回给前端
+        // 这样，如果 OpenAI 返回错误，前端也能看到具体的错误信息
+        return new Response(response.body, {
             status: response.status,
             headers: { 'Content-Type': 'application/json' },
         });
 
     } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        console.error("Cloudflare Function 内部错误:", error);
+        return new Response(JSON.stringify({ error: `函数执行失败: ${error.message}` }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
         });
