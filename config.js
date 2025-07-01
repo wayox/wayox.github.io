@@ -1,7 +1,7 @@
 // config.js
 
 // 1. 在此处粘贴你的 OpenAI API 密钥
-export const OPENAI_API_KEY = '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'; 
+export const OPENAI_API_KEY = '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'; 
 
 // 2. 系统提示词保持不变
 export const systemPrompts = {
