@@ -1,4 +1,9 @@
-import { API_KEY, systemPrompts } from './config.js';
+// =================================================================
+// ============== app.js (已适配 OpenAI GPT-4o-mini) ============
+// =================================================================
+
+// 1. 导入 OpenAI API 密钥 和 系统提示词
+import { OPENAI_API_KEY, systemPrompts } from './config.js';
 
 const elements = {
     uploadArea: document.getElementById('upload-area'),
@@ -54,7 +59,7 @@ function setupEventListeners() {
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
+    const dropZones = [document.body, elements.uploadArea];
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -112,7 +117,7 @@ async function handleStartAnalysis() {
         displayResult(resultData);
     } catch (error) {
         console.error('分析失败:', error);
-        displayError(error.message); 
+        displayError(error.message);
     }
 }
 
@@ -126,76 +131,69 @@ function showLoading(imageDataUrl) {
 }
 
 // =================================================================
-// ============== 函数已修复，请注意以下修改 ==========================
+// ============== 函数已替换为 OpenAI API 版本 =====================
 // =================================================================
 async function analyzeImage(imageDataUrl) {
-    const base64Data = imageDataUrl.split(',')[1];
-    const safetySettings = [
-        { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
-        { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
-        { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
-        { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
-    ];
-    
-    const payload = {
-        contents: [{
-            parts: [
-                { text: systemPrompts.standard },
-                {
-                    inline_data: {
-                        mime_type: "image/jpeg",
-                        data: base64Data
-                    }
-                }
-            ]
-        }],
-        generation_config: {
-            temperature: 0.3,
-            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
-            max_output_tokens: 8192,
-            responseMimeType: "application/json" 
-        },
-        safety_settings: safetySettings
-    };
-    
-    // 修复2: 使用当前有效的、强大的模型名称
-    const model = 'gemini-2.5-pro'; 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+    // 1. 定义 OpenAI API 端点和模型
+    const apiUrl = 'https://api.openai.com/v1/chat/completions';
+    const model = 'gpt-4o-mini';
 
+    // 2. 构造符合 OpenAI Vision API 格式的请求体 (payload)
+    const payload = {
+        model: model,
+        messages: [
+            {
+                role: "system",
+                content: systemPrompts.standard // 使用我们定义好的系统提示词
+            },
+            {
+                role: "user",
+                content: [
+                    { type: "text", text: "请根据这张图片进行分析。" },
+                    {
+                        type: "image_url",
+                        image_url: {
+                            // gpt-4o可以直接接收包含MIME类型的完整Data URL
+                            "url": imageDataUrl
+                        }
+                    }
+                ]
+            }
+        ],
+        // 3. 使用 "json_object" 模式，强制 API 返回合法的 JSON，极大提高稳定性
+        response_format: { type: "json_object" },
+        temperature: 0.3,
+        max_tokens: 8192 // 为JSON和解释留出足够空间
+    };
+
+    // 4. 发送请求到 OpenAI API
     const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            // 在请求头中设置 Authorization
+            'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
         body: JSON.stringify(payload)
     });
-    
-    if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API Error Response:", errorData);
-        throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
-    }
-    
+
     const data = await response.json();
-    if (!data.candidates || data.candidates.length === 0) {
-        const finishReason = data.promptFeedback?.blockReason;
-        if (finishReason) {
-             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
-        }
-        throw new Error('API未返回任何分析结果，可能是图片无法识别。');
+
+    // 5. 处理 API 可能返回的错误
+    if (!response.ok) {
+        console.error("OpenAI API Error Response:", data);
+        throw new Error(data.error?.message || `API请求失败，状态码: ${response.status}`);
     }
-    
-    let text = data.candidates[0]?.content?.parts[0]?.text;
-    
-    if (!text) {
-        throw new Error('API返回内容中不包含有效的文本数据。');
+
+    if (!data.choices || data.choices.length === 0) {
+        throw new Error('API未返回任何分析结果，可能是图片无法识别或服务暂时不可用。');
     }
-    
+
+    // 6. 解析并返回结果
+    let text = data.choices[0].message.content;
+
     try {
-        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
-        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            text = jsonMatch[0];
-        }
+        // 因为我们使用了 json_object 模式，理论上可以直接解析。
         return JSON.parse(text);
     } catch (parseError) {
         console.error('解析JSON失败的原始文本:', text);
@@ -237,7 +235,7 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
     elements.cupFill.style.width = '0%';
-    
+
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
