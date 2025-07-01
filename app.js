@@ -131,69 +131,43 @@ function showLoading(imageDataUrl) {
 }
 
 // =================================================================
-// ============== 函数已替换为 OpenAI API 版本 =====================
+// ============== 函数已替换为调用 Cloudflare Function 版本 ==========
 // =================================================================
 async function analyzeImage(imageDataUrl) {
-    // 1. 定义 OpenAI API 端点和模型
-    const apiUrl = 'https://api.openai.com/v1/chat/completions';
-    const model = 'gpt-4o-mini';
+    // 1. 定义我们的后端函数 API 端点
+    const functionUrl = '/analyze'; // Cloudflare Pages 会自动将 /analyze 路由到 functions/analyze.js
 
-    // 2. 构造符合 OpenAI Vision API 格式的请求体 (payload)
+    // 2. 构造发送给我们自己后端函数的数据
     const payload = {
-        model: model,
-        messages: [
-            {
-                role: "system",
-                content: systemPrompts.standard // 使用我们定义好的系统提示词
-            },
-            {
-                role: "user",
-                content: [
-                    { type: "text", text: "请根据这张图片进行分析。" },
-                    {
-                        type: "image_url",
-                        image_url: {
-                            // gpt-4o可以直接接收包含MIME类型的完整Data URL
-                            "url": imageDataUrl
-                        }
-                    }
-                ]
-            }
-        ],
-        // 3. 使用 "json_object" 模式，强制 API 返回合法的 JSON，极大提高稳定性
-        response_format: { type: "json_object" },
-        temperature: 0.3,
-        max_tokens: 8192 // 为JSON和解释留出足够空间
+        imageDataUrl: imageDataUrl,
+        systemPrompt: systemPrompts.standard // 将提示词也一并发送
     };
 
-    // 4. 发送请求到 OpenAI API
-    const response = await fetch(apiUrl, {
+    // 3. 发送请求到我们的 Cloudflare Function
+    const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            // 在请求头中设置 Authorization
-            'Authorization': `Bearer ${OPENAI_API_KEY}`
         },
         body: JSON.stringify(payload)
     });
 
     const data = await response.json();
 
-    // 5. 处理 API 可能返回的错误
+    // 4. 处理我们后端函数可能返回的错误，或者 OpenAI 通过它返回的错误
     if (!response.ok) {
-        console.error("OpenAI API Error Response:", data);
-        throw new Error(data.error?.message || `API请求失败，状态码: ${response.status}`);
+        console.error("API 函数错误响应:", data);
+        throw new Error(data.error?.message || `请求失败，状态码: ${response.status}`);
     }
 
     if (!data.choices || data.choices.length === 0) {
         throw new Error('API未返回任何分析结果，可能是图片无法识别或服务暂时不可用。');
     }
 
-    // 6. 解析并返回结果
+    // 5. 解析并返回结果
     let text = data.choices[0].message.content;
 
     try {
-        // 因为我们使用了 json_object 模式，理论上可以直接解析。
         return JSON.parse(text);
     } catch (parseError) {
         console.error('解析JSON失败的原始文本:', text);
