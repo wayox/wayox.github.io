@@ -1,9 +1,7 @@
 // =================================================================
 // ============== app.js (已适配 OpenAI GPT-4o-mini) ============
 // =================================================================
-
-// 1. 导入 OpenAI API 密钥 和 系统提示词
-import { OPENAI_API_KEY, systemPrompts } from './config.js';
+import { systemPrompts } from './config.js'; 
 
 const elements = {
     uploadArea: document.getElementById('upload-area'),
