@@ -1,9 +1,3 @@
-// config.js
-
-// 1. 在此处粘贴你的 OpenAI API 密钥
-export const OPENAI_API_KEY = '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'; 
-
-// 2. 系统提示词保持不变
 export const systemPrompts = {
     standard: `你是一位顶级的、以严谨和洞察力著称的二次元角色概念美术设定师。你的任务是基于一张角色图，逆向工程出其精确的身体设定数据。
 
