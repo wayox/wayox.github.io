@@ -1,6 +1,6 @@
 // config.js
 
-export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw'; // 在此处粘贴你的Google AI API密钥
+export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw'; 
 
 export const systemPrompts = {
     standard: `你是一位顶级的、以严谨和洞察力著称的二次元角色概念美术设定师。你的任务是基于一张角色图，逆向工程出其精确的身体设定数据。
@@ -24,7 +24,7 @@ export const systemPrompts = {
       "waist": 腰围估算值（cm，保留一位小数）,
       "hip": 臀围估算值（cm，保留一位小数）,
       "underbust": 下胸围估算值（cm，保留一位小数）,
-      "cupSize": "罩杯尺寸（按日系标准）",
+      "cupSize": "罩杯尺寸",
       "explanation": "请在这里详细阐述你的分析过程。必须按照【形态剥离 -> 物理校正 -> 数据重建 -> 一致性自检】的四步顺序来组织你的说明。在说明中，必须首先强调你是如何遵循【最高原则】的，然后清晰地描述你是如何排除特定衣物的干扰，并解释各项数据之间是如何相互验证的。"
     }`
 };
