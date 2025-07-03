@@ -1,7 +1,6 @@
-// =================================================================
-// ============== app.js (已适配 OpenAI GPT-4o-mini) ============
-// =================================================================
-import { systemPrompts } from './config.js'; 
+// app.js
+// (已修改) 导入 referenceLibrary 而不是 builtInReference
+import { API_KEY, systemPrompts, referenceLibrary } from './config.js';
 
 const elements = {
     uploadArea: document.getElementById('upload-area'),
@@ -43,10 +42,7 @@ function setupEventListeners() {
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
     elements.fileInput.addEventListener('change', handleFileSelect);
     elements.startAnalysisBtn.addEventListener('click', handleStartAnalysis);
-    elements.changeImageBtn.addEventListener('click', () => {
-        resetToUpload();
-        elements.fileInput.click();
-    });
+    elements.changeImageBtn.addEventListener('click', resetToUpload); // 直接调用resetToUpload
     elements.closeDisclaimerBtn.addEventListener('click', () => {
         elements.disclaimer.style.display = 'none';
     });
@@ -61,21 +57,15 @@ function setupDragAndDrop() {
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            if (zone === elements.uploadArea) {
-                zone.classList.add('drag-over');
-            }
+            if (zone === elements.uploadArea) zone.classList.add('drag-over');
         });
         zone.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            if (zone === elements.uploadArea) {
-                zone.classList.remove('drag-over');
-            }
+            if (zone === elements.uploadArea) zone.classList.remove('drag-over');
         });
         zone.addEventListener('drop', (e) => {
             e.preventDefault();
-            if (zone === elements.uploadArea) {
-                zone.classList.remove('drag-over');
-            }
+            if (zone === elements.uploadArea) zone.classList.remove('drag-over');
             if (e.dataTransfer.files.length) {
                 elements.fileInput.files = e.dataTransfer.files;
                 handleFileSelect();
@@ -83,7 +73,6 @@ function setupDragAndDrop() {
         });
     });
 }
-
 
 function handleFileSelect() {
     if (!elements.fileInput.files.length) return;
@@ -115,7 +104,7 @@ async function handleStartAnalysis() {
         displayResult(resultData);
     } catch (error) {
         console.error('分析失败:', error);
-        displayError(error.message);
+        displayError(error.message); 
     }
 }
 
@@ -128,50 +117,120 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
+
 // =================================================================
-// ============== 函数已替换为调用 Cloudflare Function 版本 ==========
+// ============== 函数已完全重构以支持参考资料库 =====================
 // =================================================================
-async function analyzeImage(imageDataUrl) {
-    // 1. 定义我们的后端函数 API 端点
-    const functionUrl = '/analyze'; // Cloudflare Pages 会自动将 /analyze 路由到 functions/analyze.js
-
-    // 2. 构造发送给我们自己后端函数的数据
-    const payload = {
-        imageDataUrl: imageDataUrl,
-        systemPrompt: systemPrompts.standard // 将提示词也一并发送
-    };
-
-    // 3. 发送请求到我们的 Cloudflare Function
-    const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-
-    // 4. 处理我们后端函数可能返回的错误，或者 OpenAI 通过它返回的错误
-    if (!response.ok) {
-        console.error("API 函数错误响应:", data);
-        throw new Error(data.error?.message || `请求失败，状态码: ${response.status}`);
+async function analyzeImage(targetImageDataUrl) {
+    // 辅助函数：通过 fetch 将文件路径转换为 Base64
+    async function imagePathToBase64(path) {
+        const response = await fetch(path);
+        if (!response.ok) {
+            throw new Error(`无法加载参考图片: ${path}，请检查文件是否存在且路径正确。`);
+        }
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result.split(',')[1]); // 只返回base64数据部分
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
     }
-
-    if (!data.choices || data.choices.length === 0) {
-        throw new Error('API未返回任何分析结果，可能是图片无法识别或服务暂时不可用。');
-    }
-
-    // 5. 解析并返回结果
-    let text = data.choices[0].message.content;
 
     try {
-        return JSON.parse(text);
-    } catch (parseError) {
-        console.error('解析JSON失败的原始文本:', text);
-        throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
+        console.log("开始加载参考资料库...");
+        // 并行获取所有参考图的Base64数据
+        const referenceBase64s = await Promise.all(
+            referenceLibrary.map(ref => imagePathToBase64(ref.imagePath))
+        );
+        console.log("参考资料库加载完成。");
+
+        const targetBase64 = targetImageDataUrl.split(',')[1];
+
+        const safetySettings = [
+            { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+            { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+        ];
+
+        const prompt = systemPrompts.referenceAnalysis;
+        
+        // 构建包含所有图片和数据的 parts 数组
+        const parts = [
+            { text: prompt },
+            { text: "\n\n---\n\n【分析目标】" },
+            { inline_data: { mime_type: "image/jpeg", data: targetBase64 } },
+            { text: "\n\n---\n\n【参考资料库】\n请从以下资料库中选择最匹配的参照物进行分析：" }
+        ];
+
+        // 动态地将所有参考图及其数据添加到 parts 数组中
+        referenceLibrary.forEach((ref, index) => {
+            parts.push({ text: `\n\n**参考角色 ${index + 1}:**\n` + JSON.stringify(ref.stats, null, 2) });
+            parts.push({ inline_data: { mime_type: "image/jpeg", data: referenceBase64s[index] } });
+        });
+        
+        const payload = {
+            contents: [{ parts: parts }],
+            generation_config: {
+                temperature: 0.2, // 温度可以稍低，让选择更具确定性
+                max_output_tokens: 8192,
+                responseMimeType: "application/json" 
+            },
+            safety_settings: safetySettings
+        };
+        
+        // 使用支持大规模多模态输入的强大模型
+        const model = 'gemini-1.5-pro-latest'; 
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+
+        console.log("正在发送API请求...");
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("API Error Response:", errorData);
+            throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("成功接收API响应。");
+
+        if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
+            const blockReason = data.promptFeedback?.blockReason;
+            if (blockReason) {
+                throw new Error(`请求被模型阻止，原因: ${blockReason}。请检查图片内容。`);
+            }
+            throw new Error('API未返回任何分析结果，可能是图片无法识别。');
+        }
+        
+        let text = data.candidates[0]?.content?.parts[0]?.text;
+        
+        if (!text) {
+            throw new Error('API返回内容中不包含有效的文本数据。');
+        }
+        
+        try {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                text = jsonMatch[0];
+            }
+            return JSON.parse(text);
+        } catch (parseError) {
+            console.error('解析JSON失败的原始文本:', text);
+            throw new Error('分析结果格式错误，无法解析返回的JSON。');
+        }
+
+    } catch (error) {
+        console.error("分析流程中发生严重错误:", error);
+        throw new Error(error.message || '分析过程中发生未知错误。');
     }
 }
+
 
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
@@ -207,15 +266,14 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
     elements.cupFill.style.width = '0%';
-
+    
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
 function handleTryAgain() {
-    // 如果当前有分析结果，则直接重新分析
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
        handleStartAnalysis();
-    } else { // 否则，返回到上传界面
+    } else {
         resetToUpload();
     }
 }
