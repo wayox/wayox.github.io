@@ -5,7 +5,7 @@ export const builtInReference = {
     imagePath: 'reference.png', 
     stats: {
         name: "核心参考模型",
-        height: 142.5.0,
+        height: 142.5,
         weight: 35,
         age: 13,
         overbust: 77.5,
