@@ -148,7 +148,7 @@ async function analyzeImage(targetImageDataUrl) {
             ]
         };
         
-        const model = 'gemini-2.5-pro-latest';
+        const model = 'gemini-2.5-pro';
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
         const apiResponse = await fetch(apiUrl, {
