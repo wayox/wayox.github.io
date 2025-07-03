@@ -1,6 +1,4 @@
-import { API_KEY, systemPrompts } from './config.js';
-
-// elements 对象保持不变...
+import { API_KEY, systemPrompts, builtInReference } from './config.js';
 const elements = {
     uploadArea: document.getElementById('upload-area'),
     fileInput: document.getElementById('file-input'),
@@ -30,14 +28,10 @@ const elements = {
     tryAgainBtn: document.getElementById('try-again'),
     saveBtn: document.getElementById('save-btn')
 };
-
 let selectedImageDataUrl = null;
-
-// 其余函数 initialize, setupEventListeners, etc. 保持不变...
 function initialize() {
     setupEventListeners();
 }
-
 function setupEventListeners() {
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
     elements.fileInput.addEventListener('change', handleFileSelect);
@@ -51,7 +45,6 @@ function setupEventListeners() {
     elements.saveBtn.addEventListener('click', saveResult);
     setupDragAndDrop();
 }
-
 function setupDragAndDrop() {
     const dropZones = [document.body, elements.uploadArea];
     dropZones.forEach(zone => {
@@ -73,7 +66,6 @@ function setupDragAndDrop() {
         });
     });
 }
-
 function handleFileSelect() {
     if (!elements.fileInput.files.length) return;
     const file = elements.fileInput.files[0];
@@ -88,14 +80,12 @@ function handleFileSelect() {
     };
     reader.readAsDataURL(file);
 }
-
 function showPreview(imageDataUrl) {
     elements.previewImage.src = imageDataUrl;
     elements.uploadArea.classList.add('hidden');
     elements.previewContainer.classList.remove('hidden');
     elements.resultContainer.classList.add('hidden');
 }
-
 async function handleStartAnalysis() {
     if (!selectedImageDataUrl) return;
     showLoading(selectedImageDataUrl);
@@ -107,7 +97,6 @@ async function handleStartAnalysis() {
         displayError(error.message); 
     }
 }
-
 function showLoading(imageDataUrl) {
     elements.imagePreview.src = imageDataUrl;
     elements.uploadArea.classList.add('hidden');
@@ -116,59 +105,41 @@ function showLoading(imageDataUrl) {
     elements.loading.classList.remove('hidden');
     elements.result.classList.add('hidden');
 }
-
-// =================================================================
-// ============== 函数已完全重构以支持动态清单文件 =====================
-// =================================================================
 async function analyzeImage(targetImageDataUrl) {
-    try {
-        // 步骤 1: 读取清单文件
-        console.log("正在读取参考资料库清单...");
-        const response = await fetch('reference_library.json');
+    async function imagePathToBase64(path) {
+        const response = await fetch(path);
         if (!response.ok) {
-            throw new Error('无法加载 reference_library.json 清单文件。请确保该文件存在且格式正确。');
+            throw new Error(`无法加载参考图片: ${path}。请检查文件是否存在于'image'文件夹内且路径正确。`);
         }
-        const referenceLibrary = await response.json();
-        console.log(`成功加载了 ${referenceLibrary.length} 个参考模型。`);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+    try {
+        const [targetBase64, referenceBase64] = await Promise.all([
+            Promise.resolve(targetImageDataUrl.split(',')[1]),
+            imagePathToBase64(builtInReference.imagePath) 
+        ]);
 
-        // 辅助函数：通过 fetch 将文件路径转换为 Base64
-        async function imagePathToBase64(path) {
-            const response = await fetch(path);
-            if (!response.ok) throw new Error(`无法加载参考图片: ${path}`);
-            const blob = await response.blob();
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-        }
-
-        // 步骤 2: 根据清单并行加载所有图片
-        console.log("正在加载所有参考图片...");
-        const referenceBase64s = await Promise.all(
-            referenceLibrary.map(ref => imagePathToBase64(ref.imagePath))
-        );
-        console.log("所有参考图片加载完成。");
-
-        const targetBase64 = targetImageDataUrl.split(',')[1];
-        
-        // 步骤 3: 构建API请求
         const parts = [
             { text: systemPrompts.referenceAnalysis },
             { text: "\n\n---\n\n【分析目标】" },
             { inline_data: { mime_type: "image/jpeg", data: targetBase64 } },
-            { text: "\n\n---\n\n【参考资料库】\n请综合以下所有模型进行分析：" }
+            { text: "\n\n---\n\n【参考资料】\n请以此为基准进行分析:\n" + JSON.stringify(builtInReference.stats, null, 2) },
+            { inline_data: { mime_type: "image/jpeg", data: referenceBase64 } }
         ];
-
-        referenceLibrary.forEach((ref, index) => {
-            parts.push({ text: `\n\n**参考模型 ${index + 1}:**\n` + JSON.stringify(ref.stats, null, 2) });
-            parts.push({ inline_data: { mime_type: "image/jpeg", data: referenceBase64s[index] } });
-        });
-
+        
         const payload = {
             contents: [{ parts: parts }],
-            generation_config: { temperature: 0.2, max_output_tokens: 8192, responseMimeType: "application/json" },
+            generation_config: {
+                temperature: 0.3,
+                max_output_tokens: 8192,
+                responseMimeType: "application/json" 
+            },
             safety_settings: [
                 { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
                 { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
@@ -177,10 +148,9 @@ async function analyzeImage(targetImageDataUrl) {
             ]
         };
         
-        const model = 'gemini-2.5-pro-latest'; 
+        const model = 'gemini-2.5-pro-latest';
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
-        
-        console.log("正在发送API请求...");
+
         const apiResponse = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -207,12 +177,10 @@ async function analyzeImage(targetImageDataUrl) {
         }
 
     } catch (error) {
-        console.error("分析流程中发生严重错误:", error);
-        throw error; // 将错误向上抛出，由 handleStartAnalysis 捕获并显示
+        console.error("分析流程中发生错误:", error);
+        throw error;
     }
 }
-
-// displayResult, displayError, handleTryAgain, etc. 保持不变...
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
