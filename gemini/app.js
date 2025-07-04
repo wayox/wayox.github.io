@@ -1,6 +1,8 @@
-// app.js (版本 8.1 - 健壮解析版)
+// app.js (版本 9.0 - 裁判系统版 / The Umpire System)
 
 import { API_KEY, systemPrompts } from './config.js';
+
+// ... (除了 analyzeImage 之外的其他代码保持不变) ...
 
 const elements = {
     uploadArea: document.getElementById('upload-area'),
@@ -126,8 +128,9 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
+
 // =================================================================
-// ============== 函数已重构为两阶段专家分析系统 =======================
+// ============== 函数已重构为 v9.0 裁判系统 =========================
 // =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
@@ -140,148 +143,82 @@ async function analyzeImage(imageDataUrl) {
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
 
-    // -----------------------------------------------------------------
-    // 第一阶段：调用分类器，判断衣物类型
-    // -----------------------------------------------------------------
-    console.log("阶段一：开始分类衣物类型...");
-    const classifierPayload = {
+    console.log("调用AI进行特征打分和基础数据估算...");
+    const payload = {
         contents: [{
             parts: [
-                { text: systemPrompts.classifier },
+                { text: systemPrompts.standard },
                 { inline_data: { mime_type: "image/jpeg", data: base64Data } }
             ]
         }],
         generation_config: {
-            temperature: 0.0,
-            responseMimeType: "application/json"
-        },
-        safety_settings: safetySettings
-    };
-
-    const classifierResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(classifierPayload)
-    });
-
-    if (!classifierResponse.ok) {
-        throw new Error(`分类器API请求失败，状态码: ${classifierResponse.status}`);
-    }
-
-    const classifierData = await classifierResponse.json();
-    let analysisType;
-
-    // ====================== 【关键修改开始】 ======================
-    //         用更健壮的解析逻辑替换原来的脆弱逻辑
-    // =============================================================
-    try {
-        const part = classifierData.candidates?.[0]?.content?.parts?.[0];
-
-        if (!part) {
-            throw new Error("API响应中缺少有效部分。");
-        }
-
-        let classifierResult;
-
-        // 尝试从 .text 字段解析JSON，这是最常见的情况
-        if (part.text) {
-            console.log("解析方法1：从text字段解析JSON。");
-            // 使用正则表达式提取可能被包裹的JSON，增加健壮性
-            const jsonMatch = part.text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                classifierResult = JSON.parse(jsonMatch[0]);
-            } else {
-                 throw new Error("在text字段中未找到有效的JSON格式。");
-            }
-        }
-        // 如果没有 .text 字段，检查其他可能的结构（虽然在此应用中不常见，但作为备用）
-        // 例如，如果模型直接返回对象而不是文本，或者使用functionCall
-        else if (typeof part === 'object' && part.analysis_type) {
-             console.log("解析方法2：直接从part对象获取。");
-             classifierResult = part;
-        }
-
-        if (classifierResult?.analysis_type) {
-            analysisType = classifierResult.analysis_type;
-        } else {
-            // 如果所有方法都失败了，抛出错误
-            console.error("无法解析的分类器响应结构:", part);
-            throw new Error("无法从API响应中提取有效的分类结果。");
-        }
-        
-        console.log(`阶段一完成：分类结果为 [${analysisType}]`);
-
-    } catch (e) {
-        console.error("分类器响应解析失败:", e, classifierData);
-        throw new Error(`无法确定衣物类型，分析中止。(${e.message})`);
-    }
-    // ====================== 【关键修改结束】 ======================
-
-    // -----------------------------------------------------------------
-    // 第二阶段：根据分类结果，选择并调用相应的专家分析器
-    // -----------------------------------------------------------------
-    console.log(`阶段二：使用 [${analysisType}] 专家分析器进行分析...`);
-    let specialistPrompt;
-    if (analysisType === 'TIGHT_FIT') {
-        specialistPrompt = systemPrompts.tight_fit;
-    } else if (analysisType === 'LOOSE_FIT') {
-        specialistPrompt = systemPrompts.loose_fit;
-    } else {
-        throw new Error(`未知的分析类型: ${analysisType}`);
-    }
-
-    const specialistPayload = {
-        contents: [{
-            parts: [
-                { text: specialistPrompt },
-                { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-            ]
-        }],
-        generation_config: {
-            temperature: 0.3,
+            temperature: 0.2,
             max_output_tokens: 8192,
             responseMimeType: "application/json"
         },
         safety_settings: safetySettings
     };
 
-    const specialistResponse = await fetch(apiUrl, {
+    const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(specialistPayload)
+        body: JSON.stringify(payload)
     });
 
-    if (!specialistResponse.ok) {
-        const errorData = await specialistResponse.json();
-        console.error("专家分析器API错误响应:", errorData);
-        throw new Error(errorData.error?.message || `专家分析器API请求失败，状态码: ${specialistResponse.status}`);
+    if (!response.ok) {
+        throw new Error(`API请求失败，状态码: ${response.status}`);
     }
 
-    const data = await specialistResponse.json();
-    if (!data.candidates || data.candidates.length === 0) {
-        const finishReason = data.promptFeedback?.blockReason;
-        if (finishReason) {
-            throw new Error(`请求被模型阻止，原因: ${finishReason}。`);
-        }
-        throw new Error('API未返回任何分析结果。');
-    }
-
-    let text = data.candidates[0]?.content?.parts[0]?.text;
-    if (!text) {
-        throw new Error('API返回内容中不包含有效的文本数据。');
-    }
-
+    const data = await response.json();
+    let aiSuggestion;
     try {
+        const text = data.candidates[0].content.parts[0].text;
         const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            text = jsonMatch[0];
-        }
-        console.log("阶段二完成：收到最终分析结果。");
-        return JSON.parse(text);
-    } catch (parseError) {
-        console.error('解析最终JSON失败的原始文本:', text);
-        throw new Error('分析结果格式错误，无法解析返回的JSON。');
+        aiSuggestion = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+        console.error("解析AI建议失败:", data);
+        throw new Error("无法解析AI返回的数据。");
     }
+
+    console.log("AI建议接收完毕:", aiSuggestion);
+
+    // =============================================================
+    //                【【【 裁判逻辑开始 】】】
+    // 在这里，我们用可靠的代码逻辑对不可靠的AI建议进行最终裁决
+    // =============================================================
+    
+    let finalResult = { ...aiSuggestion }; // 复制一份AI的建议作为基础
+    const { volume_evidence_score, flatness_evidence_score, underbust } = aiSuggestion;
+
+    console.log(`裁判分析：平坦证据分数 [${flatness_evidence_score}] vs 体积证据分数 [${volume_evidence_score}]`);
+
+    // 核心裁决逻辑
+    if (flatness_evidence_score > volume_evidence_score) {
+        console.log("【裁决】：平坦证据胜出！强制修正为小体积。");
+
+        // 无论AI建议了什么，强制修正为A罩杯
+        finalResult.cupSize = 'A'; 
+        
+        // 基于强制的A罩杯，重新计算上胸围和隆起高度
+        // A罩杯约等于10cm的围差
+        const overbust_recalculated = underbust + 10.0;
+        // 隆起高度约等于围差的1/3到1/2，这里取一个保守值
+        const protrusion_recalculated = 10.0 / 2.5; 
+        
+        finalResult.overbust = parseFloat(overbust_recalculated.toFixed(1));
+        finalResult.bustProtrusion = parseFloat(protrusion_recalculated.toFixed(1));
+        
+        // 在解释的开头加入裁决声明
+        finalResult.explanation = `<p class="umpire-ruling"><strong>【裁判系统裁决】：</strong>平坦证据得分 (${flatness_evidence_score}) 高于体积证据得分 (${volume_evidence_score})，AI的初始建议已被系统修正为小体积（A罩杯）。</p><hr>` + finalResult.explanation;
+
+    } else {
+        console.log("【裁决】：体积证据胜出或持平。采信AI的建议。");
+         // 在解释的开头加入裁决声明
+         finalResult.explanation = `<p class="umpire-ruling"><strong>【裁判系统裁决】：</strong>体积证据得分 (${volume_evidence_score}) 高于或等于平坦证据得分 (${flatness_evidence_score})，采信AI的初始建议。</p><hr>` + finalResult.explanation;
+    }
+    
+    console.log("最终裁决结果:", finalResult);
+    return finalResult;
 }
 
 function displayResult(resultData) {
@@ -305,6 +242,7 @@ function displayResult(resultData) {
     } else {
         elements.cupFill.style.width = '0%';
     }
+    // 注意：这里我们使用了 innerHTML，因为我们添加了HTML标签
     elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
 }
 
