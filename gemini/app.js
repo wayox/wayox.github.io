@@ -25,7 +25,6 @@ const elements = {
     cupSize: document.getElementById('cup-size'),
     bustProtrusion: document.getElementById('bust-protrusion'),
     cupFill: document.getElementById('cup-fill'),
-    // 新增元素，如果你修改了HTML的话
     volumeScore: document.getElementById('volume-score'),
     flatnessScore: document.getElementById('flatness-score'),
     explanation: document.getElementById('explanation'),
@@ -109,10 +108,11 @@ function showLoading(imageDataUrl) {
 }
 
 // ===================================================================
-//  核心分析函数 (V12.0 - 法庭质证版)
+//  核心分析函数 (V12.1 - 法庭质证优化版)
 // ===================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
+    // 根据您的要求，保留模型名称为 'gemini-2.5-pro'
     const model = 'gemini-2.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
     const safetySettings = [
@@ -161,30 +161,33 @@ async function analyzeImage(imageDataUrl) {
     // ===============================================
     //           【【【 法庭质证流程开始 】】】
     // ===============================================
-    
-    // 阶段一：衣物类型质证
+
+    // 阶段一：衣物类型质证 (获取事实一)
     console.log("阶段一：进行衣物类型质证...");
     const clothingResult = await callApi(systemPrompts.stage1_clothing_classifier, 0.0);
+    console.log(" -> 阶段一结果:", clothingResult); // 增强日志
     const clothingTypeFact = clothingResult.clothing_type === 'TIGHT_FIT' ? '衣物紧身' : '衣物宽松';
     console.log(` -> 事实一（衣物）确定: ${clothingTypeFact}`);
 
-    // 阶段二：几何形态质证
+    // 阶段二：几何形态质证 (获取事实二)
     console.log("阶段二：进行身体轮廓质证...");
     const silhouetteResult = await callApi(systemPrompts.stage2_silhouette_classifier, 0.0);
+    console.log(" -> 阶段二结果:", silhouetteResult); // 增强日志
     const silhouetteShapeFact = silhouetteResult.silhouette_shape === 'CURVED' ? '身体轮廓有弧度' : '身体轮廓平直';
     console.log(` -> 事实二（轮廓）确定: ${silhouetteShapeFact}`);
 
-    // 阶段三：矛盾对质与最终报告
+    // 阶段三：矛盾对质与最终报告 (基于事实进行综合研判)
     console.log("阶段三：综合事实，生成最终报告...");
     let synthesisPrompt = systemPrompts.stage3_synthesis_scorer
         .replace('{{CLOTHING_TYPE_FACT}}', clothingTypeFact)
         .replace('{{SILHOUETTE_SHAPE_FACT}}', silhouetteShapeFact);
-    
-    const finalReport = await callApi(synthesisPrompt, 0.4); // 给予大法官模型一点点创造力来平衡结果
 
-    console.log("最终分析报告:", finalReport);
-    
-    // 将质证过程信息添加到最终报告的explanation中，以便于显示
+    // 给予大法官模型一点点创造力(0.4)来平衡结果和撰写解释
+    const finalReport = await callApi(synthesisPrompt, 0.4);
+
+    console.log(" -> 阶段三最终分析报告:", finalReport); // 增强日志
+
+    // 将质证过程信息添加到最终报告的explanation中，以便于在UI上显示
     const umpireRuling = `
         <p class="umpire-ruling">
             <strong>【系统质证过程】：</strong><br>
@@ -192,7 +195,7 @@ async function analyzeImage(imageDataUrl) {
             - 事实二（轮廓质证）: <strong>${silhouetteShapeFact}</strong>
         </p><hr>
     `;
-    finalReport.explanation = umpireRuling + finalReport.explanation;
+    finalReport.explanation = umpireRuling + (finalReport.explanation || "模型未提供解释。");
 
     return finalReport;
 }
@@ -201,7 +204,6 @@ function displayResult(resultData) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
 
-    // 更新证据分数（如果HTML中有对应元素）
     if (elements.volumeScore) {
         elements.volumeScore.textContent = resultData.volume_evidence_score !== undefined ? `${resultData.volume_evidence_score} / 10` : '--';
     }
@@ -209,32 +211,31 @@ function displayResult(resultData) {
         elements.flatnessScore.textContent = resultData.flatness_evidence_score !== undefined ? `${resultData.flatness_evidence_score} / 10` : '--';
     }
 
-    elements.height.textContent = resultData.height ? `${resultData.height}cm` : '--';
-    elements.weight.textContent = resultData.weight ? `${resultData.weight}kg` : '--';
+    elements.height.textContent = resultData.height ? `${resultData.height.toFixed(1)}cm` : '--';
+    elements.weight.textContent = resultData.weight ? `${resultData.weight.toFixed(1)}kg` : '--';
     elements.age.textContent = resultData.age ? `${resultData.age}岁` : '--';
-    elements.overbust.textContent = resultData.overbust ? `${resultData.overbust}cm` : '--';
-    elements.waist.textContent = resultData.waist ? `${resultData.waist}cm` : '--';
-    elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
-    elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
+    elements.overbust.textContent = resultData.overbust ? `${resultData.overbust.toFixed(1)}cm` : '--';
+    elements.waist.textContent = resultData.waist ? `${resultData.waist.toFixed(1)}cm` : '--';
+    elements.hip.textContent = resultData.hip ? `${resultData.hip.toFixed(1)}cm` : '--';
+    elements.underbust.textContent = resultData.underbust ? `${resultData.underbust.toFixed(1)}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
-    elements.bustProtrusion.textContent = resultData.bustProtrusion ? `${resultData.bustProtrusion}cm` : '--';
+    elements.bustProtrusion.textContent = resultData.bustProtrusion ? `${resultData.bustProtrusion.toFixed(1)}cm` : '--';
 
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
     elements.cupFill.style.width = cupIndex >= 0 ? `${Math.min(100, (cupIndex + 1) * (100 / cupSizes.length))}%` : '0%';
-    
-    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
+
+    elements.explanation.innerHTML = resultData.explanation.replace(/\n/g, '<br>');
 }
 
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
-    
-    // 清空所有数据字段
+
     const dataFields = ['height', 'weight', 'age', 'overbust', 'waist', 'hip', 'underbust', 'cupSize', 'bustProtrusion'];
     dataFields.forEach(field => { elements[field].textContent = '--'; });
-    if(elements.volumeScore) elements.volumeScore.textContent = '--';
-    if(elements.flatnessScore) elements.flatnessScore.textContent = '--';
+    if(elements.volumeScore) elements.volumeScore.textContent = 'N/A';
+    if(elements.flatnessScore) elements.flatnessScore.textContent = 'N/A';
     elements.cupFill.style.width = '0%';
 
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
@@ -260,5 +261,4 @@ function resetToUpload() {
     selectedImageDataUrl = null;
 }
 
-// 初始化
 initialize();
