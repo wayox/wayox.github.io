@@ -1,6 +1,7 @@
 import { API_KEY, systemPrompts } from './config.js';
 
 const elements = {
+    // ... (这里的所有元素定义保持不变)
     uploadArea: document.getElementById('upload-area'),
     fileInput: document.getElementById('file-input'),
     previewContainer: document.getElementById('preview-container'),
@@ -34,6 +35,7 @@ const elements = {
 
 let selectedImageDataUrl = null;
 
+// ... (从 initialize() 到 showLoading() 的所有函数保持不变)
 function initialize() {
     setupEventListeners();
 }
@@ -108,11 +110,10 @@ function showLoading(imageDataUrl) {
 }
 
 // ===================================================================
-//  核心分析函数 (V12.1 - 法庭质证优化版)
+//  核心分析函数 (V12.2 - 增强错误处理版)
 // ===================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
-    // 根据您的要求，保留模型名称为 'gemini-2.5-pro'
     const model = 'gemini-2.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
     const safetySettings = [
@@ -122,7 +123,10 @@ async function analyzeImage(imageDataUrl) {
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
 
-    // 通用的API调用函数
+    // ===================================================================
+    //  【【【 核心改动区域 】】】
+    //  通用的API调用函数 (增强版)
+    // ===================================================================
     const callApi = async (prompt, temperature = 0.0) => {
         const payload = {
             contents: [{ parts: [
@@ -132,19 +136,45 @@ async function analyzeImage(imageDataUrl) {
             generation_config: { temperature, max_output_tokens: 8192, responseMimeType: "application/json" },
             safety_settings: safetySettings
         };
+
         const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!response.ok) {
             const errorData = await response.json();
             console.error("API 错误响应:", errorData);
             throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
         }
+
         const data = await response.json();
-        try {
-            if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-                 console.error("API响应结构无效:", data);
-                 throw new Error("API响应格式不正确，缺少有效的文本内容。");
+        
+        // --- 新增：健壮性检查 ---
+        if (!data.candidates || data.candidates.length === 0) {
+            // 情况1: 响应中完全没有候选内容
+            console.error("API响应中无候选内容:", data);
+            // 检查是否有 promptFeedback，这通常意味着输入被拒绝
+            if (data.promptFeedback && data.promptFeedback.blockReason) {
+                 throw new Error(`输入被拒绝，原因: ${data.promptFeedback.blockReason}。请检查您的图片或提示词。`);
             }
-            const text = data.candidates[0].content.parts[0].text;
+            throw new Error("API返回了空的候选列表，原因未知。");
+        }
+
+        const candidate = data.candidates[0];
+        console.log("完整API候选对象:", candidate); // 增强日志，便于调试
+
+        // 情况2: 候选内容存在，但被安全系统阻止 (最常见的情况)
+        if (candidate.finishReason && candidate.finishReason === "SAFETY") {
+            console.error("API响应被安全过滤器阻止:", candidate);
+            throw new Error("分析请求因内容安全原因被模型拒绝。请尝试使用一张更常规或清晰度更高的图片。");
+        }
+        
+        // 情况3: 候选内容存在，但结构不正确（之前导致错误的地方）
+        const text = candidate?.content?.parts?.[0]?.text;
+        if (!text) {
+             console.error("API响应结构无效, 缺少文本内容:", candidate);
+             throw new Error(`API响应格式不正确，模型完成原因为'${candidate.finishReason || '未知'}'，但未提供文本内容。`);
+        }
+        // --- 检查结束 ---
+
+        try {
             const jsonMatch = text.match(/\{[\s\S]*\}/);
             if (!jsonMatch) {
                 console.error("在API响应中未找到JSON对象:", text);
@@ -158,36 +188,26 @@ async function analyzeImage(imageDataUrl) {
         }
     };
 
-    // ===============================================
-    //           【【【 法庭质证流程开始 】】】
-    // ===============================================
-
-    // 阶段一：衣物类型质证 (获取事实一)
+    // 法庭质证流程 (这部分逻辑不变)
     console.log("阶段一：进行衣物类型质证...");
     const clothingResult = await callApi(systemPrompts.stage1_clothing_classifier, 0.0);
-    console.log(" -> 阶段一结果:", clothingResult); // 增强日志
+    console.log(" -> 阶段一结果:", clothingResult);
     const clothingTypeFact = clothingResult.clothing_type === 'TIGHT_FIT' ? '衣物紧身' : '衣物宽松';
     console.log(` -> 事实一（衣物）确定: ${clothingTypeFact}`);
 
-    // 阶段二：几何形态质证 (获取事实二)
     console.log("阶段二：进行身体轮廓质证...");
     const silhouetteResult = await callApi(systemPrompts.stage2_silhouette_classifier, 0.0);
-    console.log(" -> 阶段二结果:", silhouetteResult); // 增强日志
+    console.log(" -> 阶段二结果:", silhouetteResult);
     const silhouetteShapeFact = silhouetteResult.silhouette_shape === 'CURVED' ? '身体轮廓有弧度' : '身体轮廓平直';
     console.log(` -> 事实二（轮廓）确定: ${silhouetteShapeFact}`);
 
-    // 阶段三：矛盾对质与最终报告 (基于事实进行综合研判)
     console.log("阶段三：综合事实，生成最终报告...");
     let synthesisPrompt = systemPrompts.stage3_synthesis_scorer
         .replace('{{CLOTHING_TYPE_FACT}}', clothingTypeFact)
         .replace('{{SILHOUETTE_SHAPE_FACT}}', silhouetteShapeFact);
-
-    // 给予大法官模型一点点创造力(0.4)来平衡结果和撰写解释
     const finalReport = await callApi(synthesisPrompt, 0.4);
+    console.log(" -> 阶段三最终分析报告:", finalReport);
 
-    console.log(" -> 阶段三最终分析报告:", finalReport); // 增强日志
-
-    // 将质证过程信息添加到最终报告的explanation中，以便于在UI上显示
     const umpireRuling = `
         <p class="umpire-ruling">
             <strong>【系统质证过程】：</strong><br>
@@ -200,6 +220,7 @@ async function analyzeImage(imageDataUrl) {
     return finalReport;
 }
 
+// ... (从 displayResult() 到 initialize() 的所有函数保持不变)
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
@@ -211,21 +232,22 @@ function displayResult(resultData) {
         elements.flatnessScore.textContent = resultData.flatness_evidence_score !== undefined ? `${resultData.flatness_evidence_score} / 10` : '--';
     }
 
-    elements.height.textContent = resultData.height ? `${resultData.height.toFixed(1)}cm` : '--';
-    elements.weight.textContent = resultData.weight ? `${resultData.weight.toFixed(1)}kg` : '--';
+    // 增加对数值的检查，防止.toFixed()在null/undefined上报错
+    elements.height.textContent = resultData.height ? `${Number(resultData.height).toFixed(1)}cm` : '--';
+    elements.weight.textContent = resultData.weight ? `${Number(resultData.weight).toFixed(1)}kg` : '--';
     elements.age.textContent = resultData.age ? `${resultData.age}岁` : '--';
-    elements.overbust.textContent = resultData.overbust ? `${resultData.overbust.toFixed(1)}cm` : '--';
-    elements.waist.textContent = resultData.waist ? `${resultData.waist.toFixed(1)}cm` : '--';
-    elements.hip.textContent = resultData.hip ? `${resultData.hip.toFixed(1)}cm` : '--';
-    elements.underbust.textContent = resultData.underbust ? `${resultData.underbust.toFixed(1)}cm` : '--';
+    elements.overbust.textContent = resultData.overbust ? `${Number(resultData.overbust).toFixed(1)}cm` : '--';
+    elements.waist.textContent = resultData.waist ? `${Number(resultData.waist).toFixed(1)}cm` : '--';
+    elements.hip.textContent = resultData.hip ? `${Number(resultData.hip).toFixed(1)}cm` : '--';
+    elements.underbust.textContent = resultData.underbust ? `${Number(resultData.underbust).toFixed(1)}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
-    elements.bustProtrusion.textContent = resultData.bustProtrusion ? `${resultData.bustProtrusion.toFixed(1)}cm` : '--';
+    elements.bustProtrusion.textContent = resultData.bustProtrusion ? `${Number(resultData.bustProtrusion).toFixed(1)}cm` : '--';
 
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
     elements.cupFill.style.width = cupIndex >= 0 ? `${Math.min(100, (cupIndex + 1) * (100 / cupSizes.length))}%` : '0%';
 
-    elements.explanation.innerHTML = resultData.explanation.replace(/\n/g, '<br>');
+    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
 }
 
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
