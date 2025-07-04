@@ -126,11 +126,11 @@ function showLoading(imageDataUrl) {
 
 
 // =================================================================
-// ============== 函数已重构为 v10.1 法庭质证系统（类型安全版）==========
+// ============== 函数已重构为 v11.0 视觉匹配系统 ====================
 // =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
-    const model = 'gemini-2.5-pro';
+    const model = 'gemini-1.5-pro-latest';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
@@ -140,14 +140,18 @@ async function analyzeImage(imageDataUrl) {
     ];
 
     // 封装一个API调用函数，使代码更整洁
-    const callApi = async (prompt, generationConfig = { temperature: 0.0, responseMimeType: "application/json" }) => {
+    const callApi = async (prompt, temperature = 0.0) => {
         const payload = {
             contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64Data } }] }],
-            generation_config: generationConfig,
+            generation_config: { temperature, max_output_tokens: 8192, responseMimeType: "application/json" },
             safety_settings: safetySettings
         };
         const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!response.ok) throw new Error(`API请求失败，状态码: ${response.status}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("API Error Response:", errorData);
+            throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
+        }
         const data = await response.json();
         try {
             const text = data.candidates[0].content.parts[0].text;
@@ -159,84 +163,43 @@ async function analyzeImage(imageDataUrl) {
     };
 
     // =============================================================
-    //           【【【 法庭质证流程开始 】】】
+    //           【【【 视觉匹配系统流程开始 】】】
     // =============================================================
     
-    // 阶段一：衣物类型质证
-    console.log("阶段一：衣物类型质证...");
-    const clothingResult = await callApi(systemPrompts.stage1_clothing_classifier);
-    const clothingFact = clothingResult.clothing_type === 'LOOSE_FIT' ? '衣物是宽松的' : '衣物是紧身的';
-    console.log(` -> 事实一确定：${clothingFact}`);
+    // 阶段一：视觉匹配（指认）
+    console.log("阶段一：进行视觉匹配...");
+    const matcherResult = await callApi(systemPrompts.stage1_matcher, 0.0);
+    const archetype = matcherResult.best_fit_archetype;
+    console.log(` -> 匹配结果确定：画像 "${archetype}"`);
 
-    // 阶段二：几何形态质证
-    console.log("阶段二：几何形态质证...");
-    const silhouetteResult = await callApi(systemPrompts.stage2_silhouette_classifier);
-    const silhouetteFact = silhouetteResult.silhouette_shape === 'CURVED' ? '身体轮廓是有弧度的' : '身体轮廓是平直的';
-    console.log(` -> 事实二确定：${silhouetteFact}`);
+    // 阶段二：调用对应的专家数据生成器
+    let generatorPrompt;
+    let rulingMessage;
 
-    // 阶段三：矛盾对质与最终报告
-    console.log("阶段三：矛盾对质与最终报告...");
-    let scorerPrompt = systemPrompts.stage3_synthesis_scorer
-        .replace('{{CLOTHING_TYPE_FACT}}', clothingFact)
-        .replace('{{SILHOUETTE_SHAPE_FACT}}', silhouetteFact);
-    
-    const scorerGenerationConfig = { temperature: 0.3, max_output_tokens: 8192, responseMimeType: "application/json" };
-    const aiSuggestion = await callApi(scorerPrompt, scorerGenerationConfig);
-    console.log(" -> AI建议接收完毕:", aiSuggestion);
-
-    // 阶段四：分级裁判逻辑
-    console.log("阶段四：最终裁决...");
-    let finalResult = { ...aiSuggestion }; 
-    
-    // =============================================================
-    //           【【【 v10.1 关键修正开始 】】】
-    //      在进行计算前，将所有需要的变量显式转换为数字类型
-    // =============================================================
-    const volumeScore = parseFloat(aiSuggestion.volume_evidence_score);
-    const flatnessScore = parseFloat(aiSuggestion.flatness_evidence_score);
-    const numericUnderbust = parseFloat(aiSuggestion.underbust);
-
-    // 增加一个检查，确保underbust是有效数字
-    if (isNaN(numericUnderbust)) {
-        throw new Error("AI未能返回有效的下胸围(underbust)数据，无法进行裁决。");
+    switch (archetype) {
+        case 'A':
+            generatorPrompt = systemPrompts.stage2_generator_A;
+            rulingMessage = "系统匹配到【丰满型】画像，调用专家生成器。";
+            break;
+        case 'B':
+            generatorPrompt = systemPrompts.stage2_generator_B;
+            rulingMessage = "系统匹配到【平坦型】画像，调用专家生成器。";
+            break;
+        case 'C':
+            generatorPrompt = systemPrompts.stage2_generator_C;
+            rulingMessage = "系统匹配到【纤细微凸型】画像，调用专家生成器。";
+            break;
+        default:
+            throw new Error(`未知的画像类型: ${archetype}`);
     }
-
-    console.log(`裁判分析：平坦证据分数 [${flatnessScore}] vs 体积证据分数 [${volumeScore}]`);
-
-    if (flatnessScore > volumeScore) {
-        console.log("【第一层裁决】：平坦证据胜出！启动小体积修正程序。");
-        const EXTREME_FLATNESS_THRESHOLD = 7;
-        let finalCupSize;
-        let rulingMessage;
-
-        if (flatnessScore > EXTREME_FLATNESS_THRESHOLD) {
-            finalCupSize = 'AA';
-            rulingMessage = `平坦证据得分(${flatnessScore})远超体积证据(${volumeScore})，系统强制修正为【AA罩杯】。`;
-        } else {
-            finalCupSize = 'A';
-            rulingMessage = `平坦证据得分(${flatnessScore})高于体积证据(${volumeScore})，系统修正为【A罩杯】。`;
-        }
-
-        finalResult.cupSize = finalCupSize;
-        let diff = (finalCupSize === 'A') ? 10.0 : 7.5;
-        
-        // 现在所有变量都是数字，可以安全地进行数学计算
-        const overbust_recalculated = numericUnderbust + diff;
-        const protrusion_recalculated = diff / 2.5; 
-        
-        finalResult.overbust = parseFloat(overbust_recalculated.toFixed(1));
-        finalResult.bustProtrusion = parseFloat(protrusion_recalculated.toFixed(1));
-        
-        finalResult.explanation = `<p class="umpire-ruling"><strong>【裁判系统裁决】：</strong>${rulingMessage}</p><hr>` + finalResult.explanation;
-        console.log(`【第二层裁决】：裁定为${finalCupSize}。修正后数据:`, {overbust: finalResult.overbust, protrusion: finalResult.bustProtrusion});
-
-    } else {
-        console.log("【裁决】：体积证据胜出或持平。采信AI的建议。");
-        finalResult.explanation = `<p class="umpire-ruling"><strong>【裁判系统裁决】：</strong>体积证据得分(${volumeScore})不低于平坦证据(${flatnessScore})，采信AI初始建议。</p><hr>` + finalResult.explanation;
-    }
-    // ====================== 【关键修正结束】 ======================
     
-    console.log("最终裁决结果:", finalResult);
+    console.log(`阶段二：调用 ${archetype} 型数据生成器...`);
+    const finalResult = await callApi(generatorPrompt, 0.3);
+
+    // 将裁决信息加入最终结果
+    finalResult.explanation = `<p class="umpire-ruling"><strong>【系统裁定】：</strong>${rulingMessage}</p><hr>` + finalResult.explanation;
+    
+    console.log("最终分析结果:", finalResult);
     return finalResult;
 }
 
