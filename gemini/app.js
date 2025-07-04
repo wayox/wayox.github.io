@@ -1,7 +1,4 @@
-// =================================================================
-// ============== app.js (已适配 OpenAI GPT-4o-mini) ============
-// =================================================================
-import { systemPrompts } from './config.js'; 
+import { API_KEY, systemPrompts } from './config.js';
 
 const elements = {
     uploadArea: document.getElementById('upload-area'),
@@ -57,7 +54,7 @@ function setupEventListeners() {
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea];
+    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -115,7 +112,7 @@ async function handleStartAnalysis() {
         displayResult(resultData);
     } catch (error) {
         console.error('分析失败:', error);
-        displayError(error.message);
+        displayError(error.message); 
     }
 }
 
@@ -129,43 +126,76 @@ function showLoading(imageDataUrl) {
 }
 
 // =================================================================
-// ============== 函数已替换为调用 Cloudflare Function 版本 ==========
+// ============== 函数已修复，请注意以下修改 ==========================
 // =================================================================
 async function analyzeImage(imageDataUrl) {
-    // 1. 定义我们的后端函数 API 端点
-    const functionUrl = '/analyze'; // Cloudflare Pages 会自动将 /analyze 路由到 functions/analyze.js
-
-    // 2. 构造发送给我们自己后端函数的数据
+    const base64Data = imageDataUrl.split(',')[1];
+    const safetySettings = [
+        { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+    ];
+    
     const payload = {
-        imageDataUrl: imageDataUrl,
-        systemPrompt: systemPrompts.standard // 将提示词也一并发送
-    };
-
-    // 3. 发送请求到我们的 Cloudflare Function
-    const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
+        contents: [{
+            parts: [
+                { text: systemPrompts.standard },
+                {
+                    inline_data: {
+                        mime_type: "image/jpeg",
+                        data: base64Data
+                    }
+                }
+            ]
+        }],
+        generation_config: {
+            temperature: 0.3,
+            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
+            max_output_tokens: 8192,
+            responseMimeType: "application/json" 
         },
+        safety_settings: safetySettings
+    };
+    
+    // 修复2: 使用当前有效的、强大的模型名称
+    const model = 'gemini-2.5-pro'; 
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-
-    const data = await response.json();
-
-    // 4. 处理我们后端函数可能返回的错误，或者 OpenAI 通过它返回的错误
+    
     if (!response.ok) {
-        console.error("API 函数错误响应:", data);
-        throw new Error(data.error?.message || `请求失败，状态码: ${response.status}`);
+        const errorData = await response.json();
+        console.error("API Error Response:", errorData);
+        throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
     }
-
-    if (!data.choices || data.choices.length === 0) {
-        throw new Error('API未返回任何分析结果，可能是图片无法识别或服务暂时不可用。');
+    
+    const data = await response.json();
+    if (!data.candidates || data.candidates.length === 0) {
+        const finishReason = data.promptFeedback?.blockReason;
+        if (finishReason) {
+             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
+        }
+        throw new Error('API未返回任何分析结果，可能是图片无法识别。');
     }
-
-    // 5. 解析并返回结果
-    let text = data.choices[0].message.content;
-
+    
+    let text = data.candidates[0]?.content?.parts[0]?.text;
+    
+    if (!text) {
+        throw new Error('API返回内容中不包含有效的文本数据。');
+    }
+    
     try {
+        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
+        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            text = jsonMatch[0];
+        }
         return JSON.parse(text);
     } catch (parseError) {
         console.error('解析JSON失败的原始文本:', text);
@@ -207,7 +237,7 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
     elements.cupFill.style.width = '0%';
-
+    
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
