@@ -47,7 +47,15 @@ export const systemPrompts = {
     {
       "volume_evidence_score": 你给出的0-10分,
       "flatness_evidence_score": 你给出的0-10分,
-      "height": 估算身高（cm）, "weight": 估算体重（kg）, "age": 估算年龄, "overbust": "建议值", "waist": "腰围", "hip": "臀围", "underbust": "建议值", "cupSize": "建议值", "bustProtrusion": "建议值",
+      "height": 估算身高（cm，保留一位小数）,
+      "weight": 估算体重（kg，保留一位小数）,
+      "age": 估算年龄（整数）,
+      "overbust": 上胸围估算值（cm，保留一位小数）,
+      "waist": 腰围估算值（cm，保留一位小数）,
+      "hip": 臀围估算值（cm，保留一位小数）,
+      "underbust": 下胸围估算值（cm，保留一位小数）,
+      "cupSize": "罩杯尺寸",
+      "bustProtrusion": "胸部起伏估算值（cm，保留一位小数）",
       "explanation": "【必须用简体中文】解释你如何平衡既定事实来打分。"
     }
     `,
