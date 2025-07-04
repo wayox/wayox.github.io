@@ -1,3 +1,5 @@
+// app.js (版本 8.0 - 专家系统版 / Specialist System)
+
 import { API_KEY, systemPrompts } from './config.js';
 
 const elements = {
@@ -9,7 +11,6 @@ const elements = {
     changeImageBtn: document.getElementById('change-image-btn'),
     disclaimer: document.getElementById('disclaimer'),
     closeDisclaimerBtn: document.getElementById('close-disclaimer'),
-    // themeToggle 已删除
     resultContainer: document.getElementById('result-container'),
     imagePreview: document.getElementById('image-preview'),
     loading: document.getElementById('loading'),
@@ -24,7 +25,6 @@ const elements = {
     hip: document.getElementById('hip'),
     underbust: document.getElementById('underbust'),
     cupSize: document.getElementById('cup-size'),
-    // 【新增】获取隆起高度元素
     bustProtrusion: document.getElementById('bust-protrusion'),
     cupFill: document.getElementById('cup-fill'),
     explanation: document.getElementById('explanation'),
@@ -49,7 +49,6 @@ function setupEventListeners() {
     elements.closeDisclaimerBtn.addEventListener('click', () => {
         elements.disclaimer.style.display = 'none';
     });
-    // themeToggle 事件监听已删除
     elements.tryAgainBtn.addEventListener('click', handleTryAgain);
     elements.saveBtn.addEventListener('click', saveResult);
     setupDragAndDrop();
@@ -127,61 +126,110 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
+// =================================================================
+// ============== 函数已重构为两阶段专家分析系统 =======================
+// =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
+    const model = 'gemini-2.5-pro';
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
-    
-    const payload = {
+
+    // -----------------------------------------------------------------
+    // 第一阶段：调用分类器，判断衣物类型
+    // -----------------------------------------------------------------
+    console.log("阶段一：开始分类衣物类型...");
+    const classifierPayload = {
         contents: [{
             parts: [
-                { text: systemPrompts.standard },
-                {
-                    inline_data: {
-                        mime_type: "image/jpeg",
-                        data: base64Data
-                    }
-                }
+                { text: systemPrompts.classifier },
+                { inline_data: { mime_type: "image/jpeg", data: base64Data } }
+            ]
+        }],
+        generation_config: {
+            temperature: 0.0,
+            responseMimeType: "application/json"
+        },
+        safety_settings: safetySettings
+    };
+
+    const classifierResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(classifierPayload)
+    });
+
+    if (!classifierResponse.ok) {
+        throw new Error(`分类器API请求失败，状态码: ${classifierResponse.status}`);
+    }
+
+    const classifierData = await classifierResponse.json();
+    let analysisType;
+    try {
+        const classifierText = classifierData.candidates[0].content.parts[0].text;
+        const classifierResult = JSON.parse(classifierText);
+        analysisType = classifierResult.analysis_type;
+        console.log(`阶段一完成：分类结果为 [${analysisType}]`);
+    } catch (e) {
+        console.error("分类器响应解析失败:", classifierData);
+        throw new Error("无法确定衣物类型，分析中止。");
+    }
+
+    // -----------------------------------------------------------------
+    // 第二阶段：根据分类结果，选择并调用相应的专家分析器
+    // -----------------------------------------------------------------
+    console.log(`阶段二：使用 [${analysisType}] 专家分析器进行分析...`);
+    let specialistPrompt;
+    if (analysisType === 'TIGHT_FIT') {
+        specialistPrompt = systemPrompts.tight_fit;
+    } else if (analysisType === 'LOOSE_FIT') {
+        specialistPrompt = systemPrompts.loose_fit;
+    } else {
+        throw new Error(`未知的分析类型: ${analysisType}`);
+    }
+    
+    const specialistPayload = {
+        contents: [{
+            parts: [
+                { text: specialistPrompt },
+                { inline_data: { mime_type: "image/jpeg", data: base64Data } }
             ]
         }],
         generation_config: {
             temperature: 0.3,
             max_output_tokens: 8192,
-            responseMimeType: "application/json" 
+            responseMimeType: "application/json"
         },
         safety_settings: safetySettings
     };
-    
-    const model = 'gemini-2.5-pro'; 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
-    const response = await fetch(apiUrl, {
+    const specialistResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(specialistPayload)
     });
     
-    if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API Error Response:", errorData);
-        throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
+    if (!specialistResponse.ok) {
+        const errorData = await specialistResponse.json();
+        console.error("专家分析器API错误响应:", errorData);
+        throw new Error(errorData.error?.message || `专家分析器API请求失败，状态码: ${specialistResponse.status}`);
     }
     
-    const data = await response.json();
+    const data = await specialistResponse.json();
     if (!data.candidates || data.candidates.length === 0) {
         const finishReason = data.promptFeedback?.blockReason;
         if (finishReason) {
-             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
+             throw new Error(`请求被模型阻止，原因: ${finishReason}。`);
         }
-        throw new Error('API未返回任何分析结果，可能是图片无法识别。');
+        throw new Error('API未返回任何分析结果。');
     }
     
     let text = data.candidates[0]?.content?.parts[0]?.text;
-    
     if (!text) {
         throw new Error('API返回内容中不包含有效的文本数据。');
     }
@@ -191,10 +239,11 @@ async function analyzeImage(imageDataUrl) {
         if (jsonMatch) {
             text = jsonMatch[0];
         }
+        console.log("阶段二完成：收到最终分析结果。");
         return JSON.parse(text);
     } catch (parseError) {
-        console.error('解析JSON失败的原始文本:', text);
-        throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
+        console.error('解析最终JSON失败的原始文本:', text);
+        throw new Error('分析结果格式错误，无法解析返回的JSON。');
     }
 }
 
@@ -209,7 +258,6 @@ function displayResult(resultData) {
     elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
     elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
-    // 【新增】显示隆起高度
     elements.bustProtrusion.textContent = resultData.bustProtrusion ? `${resultData.bustProtrusion}cm` : '--';
 
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
@@ -234,7 +282,6 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.hip.textContent = '--';
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
-    // 【新增】重置隆起高度
     elements.bustProtrusion.textContent = '--';
     elements.cupFill.style.width = '0%';
     
@@ -260,8 +307,6 @@ function resetToUpload() {
     elements.fileInput.value = '';
     selectedImageDataUrl = null;
 }
-
-// toggleTheme 函数已删除
 
 // 初始化
 initialize();
