@@ -126,11 +126,11 @@ function showLoading(imageDataUrl) {
 
 
 // =================================================================
-// ============== 函数已重构为 v10.0 法庭质证系统 =====================
+// ============== 函数已重构为 v10.1 法庭质证系统（类型安全版）==========
 // =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
-    const model = 'gemini-2.5-pro';
+    const model = 'gemini-1.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
@@ -180,7 +180,6 @@ async function analyzeImage(imageDataUrl) {
         .replace('{{CLOTHING_TYPE_FACT}}', clothingFact)
         .replace('{{SILHOUETTE_SHAPE_FACT}}', silhouetteFact);
     
-    // 注意：第三次调用需要更长的生成时间和不同的温度
     const scorerGenerationConfig = { temperature: 0.3, max_output_tokens: 8192, responseMimeType: "application/json" };
     const aiSuggestion = await callApi(scorerPrompt, scorerGenerationConfig);
     console.log(" -> AI建议接收完毕:", aiSuggestion);
@@ -188,35 +187,54 @@ async function analyzeImage(imageDataUrl) {
     // 阶段四：分级裁判逻辑
     console.log("阶段四：最终裁决...");
     let finalResult = { ...aiSuggestion }; 
-    const { volume_evidence_score, flatness_evidence_score, underbust } = aiSuggestion;
-    console.log(`裁判分析：平坦证据分数 [${flatness_evidence_score}] vs 体积证据分数 [${volume_evidence_score}]`);
+    
+    // =============================================================
+    //           【【【 v10.1 关键修正开始 】】】
+    //      在进行计算前，将所有需要的变量显式转换为数字类型
+    // =============================================================
+    const volumeScore = parseFloat(aiSuggestion.volume_evidence_score);
+    const flatnessScore = parseFloat(aiSuggestion.flatness_evidence_score);
+    const numericUnderbust = parseFloat(aiSuggestion.underbust);
 
-    if (flatness_evidence_score > volume_evidence_score) {
+    // 增加一个检查，确保underbust是有效数字
+    if (isNaN(numericUnderbust)) {
+        throw new Error("AI未能返回有效的下胸围(underbust)数据，无法进行裁决。");
+    }
+
+    console.log(`裁判分析：平坦证据分数 [${flatnessScore}] vs 体积证据分数 [${volumeScore}]`);
+
+    if (flatnessScore > volumeScore) {
         console.log("【第一层裁决】：平坦证据胜出！启动小体积修正程序。");
         const EXTREME_FLATNESS_THRESHOLD = 7;
         let finalCupSize;
         let rulingMessage;
 
-        if (flatness_evidence_score > EXTREME_FLATNESS_THRESHOLD) {
+        if (flatnessScore > EXTREME_FLATNESS_THRESHOLD) {
             finalCupSize = 'AA';
-            console.log(`【第二层裁决】：平坦分数 (${flatness_evidence_score}) > ${EXTREME_FLATNESS_THRESHOLD}，强制修正为【AA罩杯】。`);
-            rulingMessage = `平坦证据得分 (${flatness_evidence_score}) 远高于体积证据得分 (${volume_evidence_score})，AI的初始建议已被系统强制修正为【AA罩杯】。`;
+            rulingMessage = `平坦证据得分(${flatnessScore})远超体积证据(${volumeScore})，系统强制修正为【AA罩杯】。`;
         } else {
             finalCupSize = 'A';
-            console.log(`【第二层裁决】：平坦分数 (${flatness_evidence_score}) 未超过阈值，修正为【A罩杯】。`);
-            rulingMessage = `平坦证据得分 (${flatness_evidence_score}) 高于体积证据得分 (${volume_evidence_score})，AI的初始建议已被系统修正为【A罩杯】。`;
+            rulingMessage = `平坦证据得分(${flatnessScore})高于体积证据(${volumeScore})，系统修正为【A罩杯】。`;
         }
 
         finalResult.cupSize = finalCupSize;
         let diff = (finalCupSize === 'A') ? 10.0 : 7.5;
-        finalResult.overbust = parseFloat((underbust + diff).toFixed(1));
-        finalResult.bustProtrusion = parseFloat((diff / 2.5).toFixed(1));
+        
+        // 现在所有变量都是数字，可以安全地进行数学计算
+        const overbust_recalculated = numericUnderbust + diff;
+        const protrusion_recalculated = diff / 2.5; 
+        
+        finalResult.overbust = parseFloat(overbust_recalculated.toFixed(1));
+        finalResult.bustProtrusion = parseFloat(protrusion_recalculated.toFixed(1));
+        
         finalResult.explanation = `<p class="umpire-ruling"><strong>【裁判系统裁决】：</strong>${rulingMessage}</p><hr>` + finalResult.explanation;
+        console.log(`【第二层裁决】：裁定为${finalCupSize}。修正后数据:`, {overbust: finalResult.overbust, protrusion: finalResult.bustProtrusion});
 
     } else {
         console.log("【裁决】：体积证据胜出或持平。采信AI的建议。");
-        finalResult.explanation = `<p class="umpire-ruling"><strong>【裁判系统裁-决】：</strong>体积证据得分 (${volume_evidence_score}) 高于或等于平坦证据得分 (${flatness_evidence_score})，采信AI的初始建议。</p><hr>` + finalResult.explanation;
+        finalResult.explanation = `<p class="umpire-ruling"><strong>【裁判系统裁决】：</strong>体积证据得分(${volumeScore})不低于平坦证据(${flatnessScore})，采信AI初始建议。</p><hr>` + finalResult.explanation;
     }
+    // ====================== 【关键修正结束】 ======================
     
     console.log("最终裁决结果:", finalResult);
     return finalResult;
