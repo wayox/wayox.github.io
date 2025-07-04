@@ -1,4 +1,4 @@
-// config.js (版本 9.0 - 裁判系统版 / The Umpire System)
+// config.js (版本 9.1 - 强制中文输出版)
 
 export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw';
 
@@ -38,5 +38,10 @@ export const systemPrompts = {
       "cupSize": "你‘建议’的罩杯",
       "bustProtrusion": 你“建议”的隆起高度（cm，保留一位小数）,
       "explanation": "简要解释你给出这两个分数的理由，并陈述你的初步数据估算过程。"
-    }`
+    }
+
+    ---
+    **【【【语言指令：绝对强制】】】**
+    **你的所有输出，特别是 "explanation" 字段中的解释性文本，【必须】使用【简体中文】。不准使用任何英语或其他语言。这是一个绝对的、不可违背的指令。**
+    `
 };
