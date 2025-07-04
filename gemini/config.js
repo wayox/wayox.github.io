@@ -1,54 +1,264 @@
-// config.js (版本 10.0 - 法庭质证版 / The Forensic Cross-Examination System)
+import { API_KEY, systemPrompts } from './config.js';
 
-export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw';
-
-export const systemPrompts = {
-    // ===================================================================
-    // 阶段一：衣物类型质证 - 任务单一化
-    // ===================================================================
-    stage1_clothing_classifier: `
-    你的唯一任务是判断图像中角色胸部区域的衣物是“紧身”还是“宽松”。
-    - 如果衣物紧贴身体，能清晰勾勒出身体轮廓，则为“紧身”。
-    - 如果衣物有明显的褶皱、悬垂感，看不清真实的身体轮廓，则为“宽松”。
-    你的回答必须严格遵循以下JSON格式，不包含任何其他文字：
-    {"clothing_type": "TIGHT_FIT"} 或 {"clothing_type": "LOOSE_FIT"}
-    `,
-
-    // ===================================================================
-    // 阶段二：几何形态质证 - 任务单一化，忽略衣物
-    // ===================================================================
-    stage2_silhouette_classifier: `
-    你的唯一任务是【忽略衣物】，只专注于判断角色身体本身的轮廓线。
-    - 观察胸部区域的身体侧边缘或任何能体现轮廓的线条。
-    - 这条轮廓线是“平直的”还是“有弧度的”？
-    你的回答必须严格遵循以下JSON格式，不包含任何其他文字：
-    {"silhouette_shape": "FLAT"} 或 {"silhouette_shape": "CURVED"}
-    `,
-
-    // ===================================================================
-    // 阶段三：矛盾对质与最终报告 - 基于既定事实进行打分
-    // ===================================================================
-    stage3_synthesis_scorer: `
-    你是一位客观的视觉特征分析师。你刚刚收到了两份关于一张图片的【既定事实报告】。
-    你的任务是基于这两份【你必须接受的】报告，为两组对立的视觉证据打分，并提供一套基础身体数据。
-
-    **【【【既定事实】】】**
-    - 事实一（衣物类型）：{{CLOTHING_TYPE_FACT}}
-    - 事实二（身体轮廓）：{{SILHOUETTE_SHAPE_FACT}}
-
-    **你的任务：**
-    1.  **证据打分:** 在接受上述事实的前提下，对以下两个指标进行0-10分的打分：
-        -   **volume_evidence_score (体积证据分数):** 这个分数主要反映【事实二】。如果轮廓是“有弧度的”，这个分数就应该得到一个基础分(至少3-4分)。如果衣物紧身且轮廓有弧度，分数会更高。
-        -   **flatness_evidence_score (平坦证据分数):** 这个分数主要反映【事实一】。如果衣物是“宽松的”，这个分数就应该得到一个基础分(至少3-4分)。如果轮廓平直且衣物宽松，分数会更高。
-    2.  **提供基础数据:** 估算一套完整的身体数据作为“建议值”。
-    3.  **解释:** 在 "explanation" 字段中，【必须】首先陈述你是如何平衡“{{CLOTHING_TYPE_FACT}}”和“{{SILHOUETTE_SHAPE_FACT}}”这两个事实来给出你的分数的。
-
-    **响应格式（必须严格遵守JSON格式，解释必须用简体中文）:**
-    {
-      "volume_evidence_score": 你给出的0-10分,
-      "flatness_evidence_score": 你给出的0-10分,
-      "height": 估算身高（cm）, "weight": 估算体重（kg）, "age": 估算年龄, "overbust": "建议值", "waist": "腰围", "hip": "臀围", "underbust": "建议值", "cupSize": "建议值", "bustProtrusion": "建议值",
-      "explanation": "【必须用简体中文】解释你如何平衡既定事实来打分。"
-    }
-    `,
+const elements = {
+    uploadArea: document.getElementById('upload-area'),
+    fileInput: document.getElementById('file-input'),
+    previewContainer: document.getElementById('preview-container'),
+    previewImage: document.getElementById('preview-image'),
+    startAnalysisBtn: document.getElementById('start-analysis-btn'),
+    changeImageBtn: document.getElementById('change-image-btn'),
+    disclaimer: document.getElementById('disclaimer'),
+    closeDisclaimerBtn: document.getElementById('close-disclaimer'),
+    resultContainer: document.getElementById('result-container'),
+    imagePreview: document.getElementById('image-preview'),
+    loading: document.getElementById('loading'),
+    result: document.getElementById('result'),
+    verdict: document.getElementById('verdict'),
+    verdictIcon: document.getElementById('verdict-icon'),
+    height: document.getElementById('height'),
+    weight: document.getElementById('weight'),
+    age: document.getElementById('age'),
+    overbust: document.getElementById('overbust'),
+    waist: document.getElementById('waist'),
+    hip: document.getElementById('hip'),
+    underbust: document.getElementById('underbust'),
+    cupSize: document.getElementById('cup-size'),
+    bustProtrusion: document.getElementById('bust-protrusion'),
+    cupFill: document.getElementById('cup-fill'),
+    // 新增元素，如果你修改了HTML的话
+    volumeScore: document.getElementById('volume-score'),
+    flatnessScore: document.getElementById('flatness-score'),
+    explanation: document.getElementById('explanation'),
+    tryAgainBtn: document.getElementById('try-again'),
+    saveBtn: document.getElementById('save-btn')
 };
+
+let selectedImageDataUrl = null;
+
+function initialize() {
+    setupEventListeners();
+}
+
+function setupEventListeners() {
+    elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
+    elements.fileInput.addEventListener('change', handleFileSelect);
+    elements.startAnalysisBtn.addEventListener('click', handleStartAnalysis);
+    elements.changeImageBtn.addEventListener('click', () => {
+        resetToUpload();
+        elements.fileInput.click();
+    });
+    elements.closeDisclaimerBtn.addEventListener('click', () => {
+        elements.disclaimer.style.display = 'none';
+    });
+    elements.tryAgainBtn.addEventListener('click', handleTryAgain);
+    elements.saveBtn.addEventListener('click', saveResult);
+    setupDragAndDrop();
+}
+
+function setupDragAndDrop() {
+    const dropZones = [document.body, elements.uploadArea];
+    dropZones.forEach(zone => {
+        zone.addEventListener('dragover', (e) => { e.preventDefault(); if (zone === elements.uploadArea) zone.classList.add('drag-over'); });
+        zone.addEventListener('dragleave', (e) => { e.preventDefault(); if (zone === elements.uploadArea) zone.classList.remove('drag-over'); });
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (zone === elements.uploadArea) zone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                elements.fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+    });
+}
+
+function handleFileSelect() {
+    if (!elements.fileInput.files.length) return;
+    const file = elements.fileInput.files[0];
+    if (!file.type.startsWith('image/')) { alert('请选择图片文件'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => { selectedImageDataUrl = e.target.result; showPreview(selectedImageDataUrl); };
+    reader.readAsDataURL(file);
+}
+
+function showPreview(imageDataUrl) {
+    elements.previewImage.src = imageDataUrl;
+    elements.uploadArea.classList.add('hidden');
+    elements.previewContainer.classList.remove('hidden');
+    elements.resultContainer.classList.add('hidden');
+}
+
+async function handleStartAnalysis() {
+    if (!selectedImageDataUrl) return;
+    showLoading(selectedImageDataUrl);
+    try {
+        const resultData = await analyzeImage(selectedImageDataUrl);
+        displayResult(resultData);
+    } catch (error) {
+        console.error('分析失败:', error);
+        displayError(error.message);
+    }
+}
+
+function showLoading(imageDataUrl) {
+    elements.imagePreview.src = imageDataUrl;
+    elements.uploadArea.classList.add('hidden');
+    elements.previewContainer.classList.add('hidden');
+    elements.resultContainer.classList.remove('hidden');
+    elements.loading.classList.remove('hidden');
+    elements.result.classList.add('hidden');
+}
+
+// ===================================================================
+//  核心分析函数 (V12.0 - 法庭质证版)
+// ===================================================================
+async function analyzeImage(imageDataUrl) {
+    const base64Data = imageDataUrl.split(',')[1];
+    const model = 'gemini-2.5-pro';
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+    const safetySettings = [
+        { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+    ];
+
+    // 通用的API调用函数
+    const callApi = async (prompt, temperature = 0.0) => {
+        const payload = {
+            contents: [{ parts: [
+                { inline_data: { mime_type: "image/jpeg", data: base64Data } },
+                { text: prompt }
+            ] }],
+            generation_config: { temperature, max_output_tokens: 8192, responseMimeType: "application/json" },
+            safety_settings: safetySettings
+        };
+        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("API 错误响应:", errorData);
+            throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
+        }
+        const data = await response.json();
+        try {
+            if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                 console.error("API响应结构无效:", data);
+                 throw new Error("API响应格式不正确，缺少有效的文本内容。");
+            }
+            const text = data.candidates[0].content.parts[0].text;
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                console.error("在API响应中未找到JSON对象:", text);
+                throw new Error("模型未返回有效的JSON格式数据。");
+            }
+            return JSON.parse(jsonMatch[0]);
+        } catch (e) {
+            console.error("API响应解析失败:", data);
+            console.error("解析时发生错误:", e);
+            throw new Error("无法解析API响应。请检查模型的输出是否为有效的JSON。");
+        }
+    };
+
+    // ===============================================
+    //           【【【 法庭质证流程开始 】】】
+    // ===============================================
+    
+    // 阶段一：衣物类型质证
+    console.log("阶段一：进行衣物类型质证...");
+    const clothingResult = await callApi(systemPrompts.stage1_clothing_classifier, 0.0);
+    const clothingTypeFact = clothingResult.clothing_type === 'TIGHT_FIT' ? '衣物紧身' : '衣物宽松';
+    console.log(` -> 事实一（衣物）确定: ${clothingTypeFact}`);
+
+    // 阶段二：几何形态质证
+    console.log("阶段二：进行身体轮廓质证...");
+    const silhouetteResult = await callApi(systemPrompts.stage2_silhouette_classifier, 0.0);
+    const silhouetteShapeFact = silhouetteResult.silhouette_shape === 'CURVED' ? '身体轮廓有弧度' : '身体轮廓平直';
+    console.log(` -> 事实二（轮廓）确定: ${silhouetteShapeFact}`);
+
+    // 阶段三：矛盾对质与最终报告
+    console.log("阶段三：综合事实，生成最终报告...");
+    let synthesisPrompt = systemPrompts.stage3_synthesis_scorer
+        .replace('{{CLOTHING_TYPE_FACT}}', clothingTypeFact)
+        .replace('{{SILHOUETTE_SHAPE_FACT}}', silhouetteShapeFact);
+    
+    const finalReport = await callApi(synthesisPrompt, 0.4); // 给予大法官模型一点点创造力来平衡结果
+
+    console.log("最终分析报告:", finalReport);
+    
+    // 将质证过程信息添加到最终报告的explanation中，以便于显示
+    const umpireRuling = `
+        <p class="umpire-ruling">
+            <strong>【系统质证过程】：</strong><br>
+            - 事实一（衣物质证）: <strong>${clothingTypeFact}</strong><br>
+            - 事实二（轮廓质证）: <strong>${silhouetteShapeFact}</strong>
+        </p><hr>
+    `;
+    finalReport.explanation = umpireRuling + finalReport.explanation;
+
+    return finalReport;
+}
+
+function displayResult(resultData) {
+    elements.loading.classList.add('hidden');
+    elements.result.classList.remove('hidden');
+
+    // 更新证据分数（如果HTML中有对应元素）
+    if (elements.volumeScore) {
+        elements.volumeScore.textContent = resultData.volume_evidence_score !== undefined ? `${resultData.volume_evidence_score} / 10` : '--';
+    }
+    if (elements.flatnessScore) {
+        elements.flatnessScore.textContent = resultData.flatness_evidence_score !== undefined ? `${resultData.flatness_evidence_score} / 10` : '--';
+    }
+
+    elements.height.textContent = resultData.height ? `${resultData.height}cm` : '--';
+    elements.weight.textContent = resultData.weight ? `${resultData.weight}kg` : '--';
+    elements.age.textContent = resultData.age ? `${resultData.age}岁` : '--';
+    elements.overbust.textContent = resultData.overbust ? `${resultData.overbust}cm` : '--';
+    elements.waist.textContent = resultData.waist ? `${resultData.waist}cm` : '--';
+    elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
+    elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
+    elements.cupSize.textContent = resultData.cupSize || '--';
+    elements.bustProtrusion.textContent = resultData.bustProtrusion ? `${resultData.bustProtrusion}cm` : '--';
+
+    const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+    const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
+    elements.cupFill.style.width = cupIndex >= 0 ? `${Math.min(100, (cupIndex + 1) * (100 / cupSizes.length))}%` : '0%';
+    
+    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
+}
+
+function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
+    elements.loading.classList.add('hidden');
+    elements.result.classList.remove('hidden');
+    
+    // 清空所有数据字段
+    const dataFields = ['height', 'weight', 'age', 'overbust', 'waist', 'hip', 'underbust', 'cupSize', 'bustProtrusion'];
+    dataFields.forEach(field => { elements[field].textContent = '--'; });
+    if(elements.volumeScore) elements.volumeScore.textContent = '--';
+    if(elements.flatnessScore) elements.flatnessScore.textContent = '--';
+    elements.cupFill.style.width = '0%';
+
+    elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
+}
+
+function handleTryAgain() {
+    if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
+        handleStartAnalysis();
+    } else {
+        resetToUpload();
+    }
+}
+
+function saveResult() {
+    alert('结果保存功能尚未实现');
+}
+
+function resetToUpload() {
+    elements.previewContainer.classList.add('hidden');
+    elements.resultContainer.classList.add('hidden');
+    elements.uploadArea.classList.remove('hidden');
+    elements.fileInput.value = '';
+    selectedImageDataUrl = null;
+}
+
+// 初始化
+initialize();
