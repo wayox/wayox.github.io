@@ -126,11 +126,11 @@ function showLoading(imageDataUrl) {
 
 
 // =================================================================
-// ============== 函数已重构为 v11.0 视觉匹配系统 ====================
+// ============== 函数已重构为 v11.0 视觉匹配系统 (已修复) =============
 // =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
-    const model = 'gemini-1.5-pro-latest';
+    const model = 'gemini-2.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
@@ -141,24 +141,43 @@ async function analyzeImage(imageDataUrl) {
 
     // 封装一个API调用函数，使代码更整洁
     const callApi = async (prompt, temperature = 0.0) => {
+        // [修复] 调整了 parts 数组的顺序，将图片数据（inline_data）放在了文本（text）之前。
+        // 这符合 Google Vision Model 的最佳实践，能解决 400 错误。
         const payload = {
-            contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/jpeg", data: base64Data } }] }],
+            contents: [{
+                parts: [
+                    { inline_data: { mime_type: "image/jpeg", data: base64Data } },
+                    { text: prompt }
+                ]
+            }],
             generation_config: { temperature, max_output_tokens: 8192, responseMimeType: "application/json" },
             safety_settings: safetySettings
         };
         const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!response.ok) {
             const errorData = await response.json();
-            console.error("API Error Response:", errorData);
+            console.error("API 错误响应:", errorData);
+            // 抛出从API获取的更具体的错误信息
             throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
         }
         const data = await response.json();
         try {
+            // [优化] 在解析前增加防御性检查，确保响应结构正确
+            if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                 console.error("API响应结构无效:", data);
+                 throw new Error("API响应格式不正确，缺少有效的文本内容。");
+            }
             const text = data.candidates[0].content.parts[0].text;
-            return JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) {
+                console.error("在API响应中未找到JSON对象:", text);
+                throw new Error("模型未返回有效的JSON格式数据。");
+            }
+            return JSON.parse(jsonMatch[0]);
         } catch (e) {
             console.error("API响应解析失败:", data);
-            throw new Error("无法解析API响应。");
+            console.error("解析时发生错误:", e);
+            throw new Error("无法解析API响应。请检查模型的输出是否为有效的JSON。");
         }
     };
 
