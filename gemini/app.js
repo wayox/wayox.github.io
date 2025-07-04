@@ -130,7 +130,7 @@ function showLoading(imageDataUrl) {
 // =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
-    const model = 'gemini-1.5-pro';
+    const model = 'gemini-2.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
