@@ -9,7 +9,7 @@ const elements = {
     changeImageBtn: document.getElementById('change-image-btn'),
     disclaimer: document.getElementById('disclaimer'),
     closeDisclaimerBtn: document.getElementById('close-disclaimer'),
-    themeToggle: document.getElementById('theme-toggle'),
+    // themeToggle 已删除
     resultContainer: document.getElementById('result-container'),
     imagePreview: document.getElementById('image-preview'),
     loading: document.getElementById('loading'),
@@ -24,6 +24,8 @@ const elements = {
     hip: document.getElementById('hip'),
     underbust: document.getElementById('underbust'),
     cupSize: document.getElementById('cup-size'),
+    // 【新增】获取隆起高度元素
+    bustProtrusion: document.getElementById('bust-protrusion'),
     cupFill: document.getElementById('cup-fill'),
     explanation: document.getElementById('explanation'),
     tryAgainBtn: document.getElementById('try-again'),
@@ -47,14 +49,14 @@ function setupEventListeners() {
     elements.closeDisclaimerBtn.addEventListener('click', () => {
         elements.disclaimer.style.display = 'none';
     });
-    elements.themeToggle.addEventListener('click', toggleTheme);
+    // themeToggle 事件监听已删除
     elements.tryAgainBtn.addEventListener('click', handleTryAgain);
     elements.saveBtn.addEventListener('click', saveResult);
     setupDragAndDrop();
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
+    const dropZones = [document.body, elements.uploadArea];
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -125,9 +127,6 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
-// =================================================================
-// ============== 函数已修复，请注意以下修改 ==========================
-// =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
     const safetySettings = [
@@ -151,14 +150,12 @@ async function analyzeImage(imageDataUrl) {
         }],
         generation_config: {
             temperature: 0.3,
-            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
             max_output_tokens: 8192,
             responseMimeType: "application/json" 
         },
         safety_settings: safetySettings
     };
     
-    // 修复2: 使用当前有效的、强大的模型名称
     const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
@@ -190,8 +187,6 @@ async function analyzeImage(imageDataUrl) {
     }
     
     try {
-        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
-        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             text = jsonMatch[0];
@@ -214,6 +209,9 @@ function displayResult(resultData) {
     elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
     elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
+    // 【新增】显示隆起高度
+    elements.bustProtrusion.textContent = resultData.bustProtrusion ? `${resultData.bustProtrusion}cm` : '--';
+
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
     if (cupIndex >= 0) {
@@ -236,16 +234,17 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.hip.textContent = '--';
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
+    // 【新增】重置隆起高度
+    elements.bustProtrusion.textContent = '--';
     elements.cupFill.style.width = '0%';
     
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
 function handleTryAgain() {
-    // 如果当前有分析结果，则直接重新分析
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
        handleStartAnalysis();
-    } else { // 否则，返回到上传界面
+    } else {
         resetToUpload();
     }
 }
@@ -262,10 +261,7 @@ function resetToUpload() {
     selectedImageDataUrl = null;
 }
 
-function toggleTheme() {
-    document.body.classList.toggle('dark-mode');
-    elements.themeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
-}
+// toggleTheme 函数已删除
 
 // 初始化
 initialize();
