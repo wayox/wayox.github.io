@@ -1,4 +1,4 @@
-// app.js (版本 8.0 - 专家系统版 / Specialist System)
+// app.js (版本 8.1 - 健壮解析版)
 
 import { API_KEY, systemPrompts } from './config.js';
 
@@ -113,7 +113,7 @@ async function handleStartAnalysis() {
         displayResult(resultData);
     } catch (error) {
         console.error('分析失败:', error);
-        displayError(error.message); 
+        displayError(error.message);
     }
 }
 
@@ -170,15 +170,52 @@ async function analyzeImage(imageDataUrl) {
 
     const classifierData = await classifierResponse.json();
     let analysisType;
+
+    // ====================== 【关键修改开始】 ======================
+    //         用更健壮的解析逻辑替换原来的脆弱逻辑
+    // =============================================================
     try {
-        const classifierText = classifierData.candidates[0].content.parts[0].text;
-        const classifierResult = JSON.parse(classifierText);
-        analysisType = classifierResult.analysis_type;
+        const part = classifierData.candidates?.[0]?.content?.parts?.[0];
+
+        if (!part) {
+            throw new Error("API响应中缺少有效部分。");
+        }
+
+        let classifierResult;
+
+        // 尝试从 .text 字段解析JSON，这是最常见的情况
+        if (part.text) {
+            console.log("解析方法1：从text字段解析JSON。");
+            // 使用正则表达式提取可能被包裹的JSON，增加健壮性
+            const jsonMatch = part.text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                classifierResult = JSON.parse(jsonMatch[0]);
+            } else {
+                 throw new Error("在text字段中未找到有效的JSON格式。");
+            }
+        }
+        // 如果没有 .text 字段，检查其他可能的结构（虽然在此应用中不常见，但作为备用）
+        // 例如，如果模型直接返回对象而不是文本，或者使用functionCall
+        else if (typeof part === 'object' && part.analysis_type) {
+             console.log("解析方法2：直接从part对象获取。");
+             classifierResult = part;
+        }
+
+        if (classifierResult?.analysis_type) {
+            analysisType = classifierResult.analysis_type;
+        } else {
+            // 如果所有方法都失败了，抛出错误
+            console.error("无法解析的分类器响应结构:", part);
+            throw new Error("无法从API响应中提取有效的分类结果。");
+        }
+        
         console.log(`阶段一完成：分类结果为 [${analysisType}]`);
+
     } catch (e) {
-        console.error("分类器响应解析失败:", classifierData);
-        throw new Error("无法确定衣物类型，分析中止。");
+        console.error("分类器响应解析失败:", e, classifierData);
+        throw new Error(`无法确定衣物类型，分析中止。(${e.message})`);
     }
+    // ====================== 【关键修改结束】 ======================
 
     // -----------------------------------------------------------------
     // 第二阶段：根据分类结果，选择并调用相应的专家分析器
@@ -192,7 +229,7 @@ async function analyzeImage(imageDataUrl) {
     } else {
         throw new Error(`未知的分析类型: ${analysisType}`);
     }
-    
+
     const specialistPayload = {
         contents: [{
             parts: [
@@ -213,27 +250,27 @@ async function analyzeImage(imageDataUrl) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(specialistPayload)
     });
-    
+
     if (!specialistResponse.ok) {
         const errorData = await specialistResponse.json();
         console.error("专家分析器API错误响应:", errorData);
         throw new Error(errorData.error?.message || `专家分析器API请求失败，状态码: ${specialistResponse.status}`);
     }
-    
+
     const data = await specialistResponse.json();
     if (!data.candidates || data.candidates.length === 0) {
         const finishReason = data.promptFeedback?.blockReason;
         if (finishReason) {
-             throw new Error(`请求被模型阻止，原因: ${finishReason}。`);
+            throw new Error(`请求被模型阻止，原因: ${finishReason}。`);
         }
         throw new Error('API未返回任何分析结果。');
     }
-    
+
     let text = data.candidates[0]?.content?.parts[0]?.text;
     if (!text) {
         throw new Error('API返回内容中不包含有效的文本数据。');
     }
-    
+
     try {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -284,13 +321,13 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.cupSize.textContent = '--';
     elements.bustProtrusion.textContent = '--';
     elements.cupFill.style.width = '0%';
-    
+
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
 function handleTryAgain() {
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
-       handleStartAnalysis();
+        handleStartAnalysis();
     } else {
         resetToUpload();
     }
