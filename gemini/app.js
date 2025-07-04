@@ -25,6 +25,9 @@ const elements = {
     cupSize: document.getElementById('cup-size'),
     bustProtrusion: document.getElementById('bust-protrusion'),
     cupFill: document.getElementById('cup-fill'),
+    // 新增元素，如果你修改了HTML的话
+    volumeScore: document.getElementById('volume-score'),
+    flatnessScore: document.getElementById('flatness-score'),
     explanation: document.getElementById('explanation'),
     tryAgainBtn: document.getElementById('try-again'),
     saveBtn: document.getElementById('save-btn')
@@ -55,23 +58,11 @@ function setupEventListeners() {
 function setupDragAndDrop() {
     const dropZones = [document.body, elements.uploadArea];
     dropZones.forEach(zone => {
-        zone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            if (zone === elements.uploadArea) {
-                zone.classList.add('drag-over');
-            }
-        });
-        zone.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            if (zone === elements.uploadArea) {
-                zone.classList.remove('drag-over');
-            }
-        });
+        zone.addEventListener('dragover', (e) => { e.preventDefault(); if (zone === elements.uploadArea) zone.classList.add('drag-over'); });
+        zone.addEventListener('dragleave', (e) => { e.preventDefault(); if (zone === elements.uploadArea) zone.classList.remove('drag-over'); });
         zone.addEventListener('drop', (e) => {
             e.preventDefault();
-            if (zone === elements.uploadArea) {
-                zone.classList.remove('drag-over');
-            }
+            if (zone === elements.uploadArea) zone.classList.remove('drag-over');
             if (e.dataTransfer.files.length) {
                 elements.fileInput.files = e.dataTransfer.files;
                 handleFileSelect();
@@ -80,19 +71,12 @@ function setupDragAndDrop() {
     });
 }
 
-
 function handleFileSelect() {
     if (!elements.fileInput.files.length) return;
     const file = elements.fileInput.files[0];
-    if (!file.type.startsWith('image/')) {
-        alert('请选择图片文件');
-        return;
-    }
+    if (!file.type.startsWith('image/')) { alert('请选择图片文件'); return; }
     const reader = new FileReader();
-    reader.onload = (e) => {
-        selectedImageDataUrl = e.target.result;
-        showPreview(selectedImageDataUrl);
-    };
+    reader.onload = (e) => { selectedImageDataUrl = e.target.result; showPreview(selectedImageDataUrl); };
     reader.readAsDataURL(file);
 }
 
@@ -124,10 +108,9 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
-
-// =================================================================
-// ============== 函数已重构为 v11.0 视觉匹配系统 (已修复) =============
-// =================================================================
+// ===================================================================
+//  核心分析函数 (V12.0 - 法庭质证版)
+// ===================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
     const model = 'gemini-2.5-pro';
@@ -139,17 +122,13 @@ async function analyzeImage(imageDataUrl) {
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
 
-    // 封装一个API调用函数，使代码更整洁
+    // 通用的API调用函数
     const callApi = async (prompt, temperature = 0.0) => {
-        // [修复] 调整了 parts 数组的顺序，将图片数据（inline_data）放在了文本（text）之前。
-        // 这符合 Google Vision Model 的最佳实践，能解决 400 错误。
         const payload = {
-            contents: [{
-                parts: [
-                    { inline_data: { mime_type: "image/jpeg", data: base64Data } },
-                    { text: prompt }
-                ]
-            }],
+            contents: [{ parts: [
+                { inline_data: { mime_type: "image/jpeg", data: base64Data } },
+                { text: prompt }
+            ] }],
             generation_config: { temperature, max_output_tokens: 8192, responseMimeType: "application/json" },
             safety_settings: safetySettings
         };
@@ -157,12 +136,10 @@ async function analyzeImage(imageDataUrl) {
         if (!response.ok) {
             const errorData = await response.json();
             console.error("API 错误响应:", errorData);
-            // 抛出从API获取的更具体的错误信息
             throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
         }
         const data = await response.json();
         try {
-            // [优化] 在解析前增加防御性检查，确保响应结构正确
             if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
                  console.error("API响应结构无效:", data);
                  throw new Error("API响应格式不正确，缺少有效的文本内容。");
@@ -181,51 +158,57 @@ async function analyzeImage(imageDataUrl) {
         }
     };
 
-    // =============================================================
-    //           【【【 视觉匹配系统流程开始 】】】
-    // =============================================================
+    // ===============================================
+    //           【【【 法庭质证流程开始 】】】
+    // ===============================================
     
-    // 阶段一：视觉匹配（指认）
-    console.log("阶段一：进行视觉匹配...");
-    const matcherResult = await callApi(systemPrompts.stage1_matcher, 0.0);
-    const archetype = matcherResult.best_fit_archetype;
-    console.log(` -> 匹配结果确定：画像 "${archetype}"`);
+    // 阶段一：衣物类型质证
+    console.log("阶段一：进行衣物类型质证...");
+    const clothingResult = await callApi(systemPrompts.stage1_clothing_classifier, 0.0);
+    const clothingTypeFact = clothingResult.clothing_type === 'TIGHT_FIT' ? '衣物紧身' : '衣物宽松';
+    console.log(` -> 事实一（衣物）确定: ${clothingTypeFact}`);
 
-    // 阶段二：调用对应的专家数据生成器
-    let generatorPrompt;
-    let rulingMessage;
+    // 阶段二：几何形态质证
+    console.log("阶段二：进行身体轮廓质证...");
+    const silhouetteResult = await callApi(systemPrompts.stage2_silhouette_classifier, 0.0);
+    const silhouetteShapeFact = silhouetteResult.silhouette_shape === 'CURVED' ? '身体轮廓有弧度' : '身体轮廓平直';
+    console.log(` -> 事实二（轮廓）确定: ${silhouetteShapeFact}`);
 
-    switch (archetype) {
-        case 'A':
-            generatorPrompt = systemPrompts.stage2_generator_A;
-            rulingMessage = "系统匹配到【丰满型】画像，调用专家生成器。";
-            break;
-        case 'B':
-            generatorPrompt = systemPrompts.stage2_generator_B;
-            rulingMessage = "系统匹配到【平坦型】画像，调用专家生成器。";
-            break;
-        case 'C':
-            generatorPrompt = systemPrompts.stage2_generator_C;
-            rulingMessage = "系统匹配到【纤细微凸型】画像，调用专家生成器。";
-            break;
-        default:
-            throw new Error(`未知的画像类型: ${archetype}`);
-    }
+    // 阶段三：矛盾对质与最终报告
+    console.log("阶段三：综合事实，生成最终报告...");
+    let synthesisPrompt = systemPrompts.stage3_synthesis_scorer
+        .replace('{{CLOTHING_TYPE_FACT}}', clothingTypeFact)
+        .replace('{{SILHOUETTE_SHAPE_FACT}}', silhouetteShapeFact);
     
-    console.log(`阶段二：调用 ${archetype} 型数据生成器...`);
-    const finalResult = await callApi(generatorPrompt, 0.3);
+    const finalReport = await callApi(synthesisPrompt, 0.4); // 给予大法官模型一点点创造力来平衡结果
 
-    // 将裁决信息加入最终结果
-    finalResult.explanation = `<p class="umpire-ruling"><strong>【系统裁定】：</strong>${rulingMessage}</p><hr>` + finalResult.explanation;
+    console.log("最终分析报告:", finalReport);
     
-    console.log("最终分析结果:", finalResult);
-    return finalResult;
+    // 将质证过程信息添加到最终报告的explanation中，以便于显示
+    const umpireRuling = `
+        <p class="umpire-ruling">
+            <strong>【系统质证过程】：</strong><br>
+            - 事实一（衣物质证）: <strong>${clothingTypeFact}</strong><br>
+            - 事实二（轮廓质证）: <strong>${silhouetteShapeFact}</strong>
+        </p><hr>
+    `;
+    finalReport.explanation = umpireRuling + finalReport.explanation;
+
+    return finalReport;
 }
-
 
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
+
+    // 更新证据分数（如果HTML中有对应元素）
+    if (elements.volumeScore) {
+        elements.volumeScore.textContent = resultData.volume_evidence_score !== undefined ? `${resultData.volume_evidence_score} / 10` : '--';
+    }
+    if (elements.flatnessScore) {
+        elements.flatnessScore.textContent = resultData.flatness_evidence_score !== undefined ? `${resultData.flatness_evidence_score} / 10` : '--';
+    }
+
     elements.height.textContent = resultData.height ? `${resultData.height}cm` : '--';
     elements.weight.textContent = resultData.weight ? `${resultData.weight}kg` : '--';
     elements.age.textContent = resultData.age ? `${resultData.age}岁` : '--';
@@ -238,27 +221,20 @@ function displayResult(resultData) {
 
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
-    if (cupIndex >= 0) {
-        const cupWidth = Math.min(100, (cupIndex + 1) * (100 / cupSizes.length));
-        elements.cupFill.style.width = `${cupWidth}%`;
-    } else {
-        elements.cupFill.style.width = '0%';
-    }
+    elements.cupFill.style.width = cupIndex >= 0 ? `${Math.min(100, (cupIndex + 1) * (100 / cupSizes.length))}%` : '0%';
+    
     elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
 }
 
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
-    elements.height.textContent = '--';
-    elements.weight.textContent = '--';
-    elements.age.textContent = '--';
-    elements.overbust.textContent = '--';
-    elements.waist.textContent = '--';
-    elements.hip.textContent = '--';
-    elements.underbust.textContent = '--';
-    elements.cupSize.textContent = '--';
-    elements.bustProtrusion.textContent = '--';
+    
+    // 清空所有数据字段
+    const dataFields = ['height', 'weight', 'age', 'overbust', 'waist', 'hip', 'underbust', 'cupSize', 'bustProtrusion'];
+    dataFields.forEach(field => { elements[field].textContent = '--'; });
+    if(elements.volumeScore) elements.volumeScore.textContent = '--';
+    if(elements.flatnessScore) elements.flatnessScore.textContent = '--';
     elements.cupFill.style.width = '0%';
 
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
