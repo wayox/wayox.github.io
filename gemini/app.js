@@ -172,7 +172,7 @@ async function analyzeImage(imageDataUrl) {
     };
     
     // **【关键修改 2：使用正确的、更强大的模型】**
-    const model = 'gemini-1.5-pro-latest';
+    const model = 'gemini-2.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
     const response = await fetch(apiUrl, {
