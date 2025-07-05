@@ -11,7 +11,6 @@ const elements = {
     changeImageBtn: document.getElementById('change-image-btn'),
     disclaimer: document.getElementById('disclaimer'),
     closeDisclaimerBtn: document.getElementById('close-disclaimer'),
-    themeToggle: document.getElementById('theme-toggle'),
     resultContainer: document.getElementById('result-container'),
     imagePreview: document.getElementById('image-preview'),
     loading: document.getElementById('loading'),
@@ -49,7 +48,6 @@ function setupEventListeners() {
     elements.closeDisclaimerBtn.addEventListener('click', () => {
         elements.disclaimer.style.display = 'none';
     });
-    elements.themeToggle.addEventListener('click', toggleTheme);
     elements.tryAgainBtn.addEventListener('click', handleTryAgain);
     elements.saveBtn.addEventListener('click', saveResult);
     setupDragAndDrop();
@@ -270,11 +268,6 @@ function resetToUpload() {
     elements.uploadArea.classList.remove('hidden');
     elements.fileInput.value = '';
     selectedImageDataUrl = null;
-}
-
-function toggleTheme() {
-    document.body.classList.toggle('dark-mode');
-    elements.themeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
 }
 
 // 初始化
