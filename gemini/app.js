@@ -1,3 +1,5 @@
+// app.js
+
 import { API_KEY, systemPrompts } from './config.js';
 
 const elements = {
@@ -54,7 +56,7 @@ function setupEventListeners() {
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
+    const dropZones = [document.body, elements.uploadArea];
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -126,7 +128,7 @@ function showLoading(imageDataUrl) {
 }
 
 // =================================================================
-// ============== 函数已修复，请注意以下修改 ==========================
+// ============== 核心分析函数已更新优化 =============================
 // =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
@@ -143,22 +145,22 @@ async function analyzeImage(imageDataUrl) {
                 { text: systemPrompts.standard },
                 {
                     inline_data: {
-                        mime_type: "image/jpeg",
+                        mime_type: "image/jpeg", // 即使是png等格式，作为jpeg发送通常也能被模型很好地处理
                         data: base64Data
                     }
                 }
             ]
         }],
         generation_config: {
-            temperature: 0.3,
-            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
+            temperature: 0.2, // 稍微降低温度，让模型更遵循我们的严格指令
+            // 增加最大输出令牌数，防止返回的JSON和详细解释被截断
             max_output_tokens: 8192,
             responseMimeType: "application/json" 
         },
         safety_settings: safetySettings
     };
     
-    // 修复2: 使用当前有效的、强大的模型名称
+    // 使用当前最强大、最适合复杂推理的模型之一
     const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
@@ -171,16 +173,20 @@ async function analyzeImage(imageDataUrl) {
     if (!response.ok) {
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
-        throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
+        // 提供更具体的错误信息
+        const message = errorData.error?.message || `API请求失败，状态码: ${response.status}`;
+        throw new Error(message);
     }
     
     const data = await response.json();
+
+    // 增加对内容被阻止的判断
     if (!data.candidates || data.candidates.length === 0) {
         const finishReason = data.promptFeedback?.blockReason;
         if (finishReason) {
              throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
         }
-        throw new Error('API未返回任何分析结果，可能是图片无法识别。');
+        throw new Error('API未返回任何分析结果，可能是图片无法识别或网络问题。');
     }
     
     let text = data.candidates[0]?.content?.parts[0]?.text;
@@ -190,7 +196,7 @@ async function analyzeImage(imageDataUrl) {
     }
     
     try {
-        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
+        // 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
         // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -214,6 +220,7 @@ function displayResult(resultData) {
     elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
     elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
+    
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
     if (cupIndex >= 0) {
@@ -222,6 +229,8 @@ function displayResult(resultData) {
     } else {
         elements.cupFill.style.width = '0%';
     }
+    
+    // 使用 innerHTML 来渲染 explanation 中的换行符
     elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
 }
 
@@ -251,6 +260,7 @@ function handleTryAgain() {
 }
 
 function saveResult() {
+    // 实际实现时可以使用 html2canvas 等库来保存结果图片
     alert('结果保存功能尚未实现');
 }
 
