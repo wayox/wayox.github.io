@@ -25,6 +25,7 @@ const elements = {
     hip: document.getElementById('hip'),
     underbust: document.getElementById('underbust'),
     cupSize: document.getElementById('cup-size'),
+    bustProminence: document.getElementById('bust-prominence'), // 新增
     cupFill: document.getElementById('cup-fill'),
     explanation: document.getElementById('explanation'),
     tryAgainBtn: document.getElementById('try-again'),
@@ -125,9 +126,6 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
-// =================================================================
-// ============== 核心分析函数已更新优化 =============================
-// =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
     const safetySettings = [
@@ -143,22 +141,20 @@ async function analyzeImage(imageDataUrl) {
                 { text: systemPrompts.standard },
                 {
                     inline_data: {
-                        mime_type: "image/jpeg", // 即使是png等格式，作为jpeg发送通常也能被模型很好地处理
+                        mime_type: "image/jpeg",
                         data: base64Data
                     }
                 }
             ]
         }],
         generation_config: {
-            temperature: 0.2, // 稍微降低温度，让模型更遵循我们的严格指令
-            // 增加最大输出令牌数，防止返回的JSON和详细解释被截断
+            temperature: 0.2,
             max_output_tokens: 8192,
             responseMimeType: "application/json" 
         },
         safety_settings: safetySettings
     };
     
-    // 使用当前最强大、最适合复杂推理的模型之一
     const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
@@ -171,14 +167,12 @@ async function analyzeImage(imageDataUrl) {
     if (!response.ok) {
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
-        // 提供更具体的错误信息
         const message = errorData.error?.message || `API请求失败，状态码: ${response.status}`;
         throw new Error(message);
     }
     
     const data = await response.json();
 
-    // 增加对内容被阻止的判断
     if (!data.candidates || data.candidates.length === 0) {
         const finishReason = data.promptFeedback?.blockReason;
         if (finishReason) {
@@ -194,8 +188,6 @@ async function analyzeImage(imageDataUrl) {
     }
     
     try {
-        // 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
-        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             text = jsonMatch[0];
@@ -218,6 +210,7 @@ function displayResult(resultData) {
     elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
     elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
+    elements.bustProminence.textContent = resultData.bustProminence ? `${resultData.bustProminence}cm` : '--'; // 新增
     
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
@@ -228,7 +221,6 @@ function displayResult(resultData) {
         elements.cupFill.style.width = '0%';
     }
     
-    // 使用 innerHTML 来渲染 explanation 中的换行符
     elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
 }
 
@@ -243,22 +235,21 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.hip.textContent = '--';
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
+    elements.bustProminence.textContent = '--'; // 新增
     elements.cupFill.style.width = '0%';
     
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
 function handleTryAgain() {
-    // 如果当前有分析结果，则直接重新分析
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
        handleStartAnalysis();
-    } else { // 否则，返回到上传界面
+    } else {
         resetToUpload();
     }
 }
 
 function saveResult() {
-    // 实际实现时可以使用 html2canvas 等库来保存结果图片
     alert('结果保存功能尚未实现');
 }
 
