@@ -1,5 +1,3 @@
-// app.js
-
 import { API_KEY, systemPrompts } from './config.js';
 
 const elements = {
@@ -25,7 +23,6 @@ const elements = {
     hip: document.getElementById('hip'),
     underbust: document.getElementById('underbust'),
     cupSize: document.getElementById('cup-size'),
-    bustProminence: document.getElementById('bust-prominence'),
     cupFill: document.getElementById('cup-fill'),
     explanation: document.getElementById('explanation'),
     tryAgainBtn: document.getElementById('try-again'),
@@ -55,7 +52,7 @@ function setupEventListeners() {
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea];
+    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -113,7 +110,7 @@ async function handleStartAnalysis() {
         displayResult(resultData);
     } catch (error) {
         console.error('分析失败:', error);
-        displayError(error.message);
+        displayError(error.message); 
     }
 }
 
@@ -126,36 +123,40 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
+// =================================================================
+// ============== 函数已修复，请注意以下修改 ==========================
+// =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
-
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
-
+    
     const payload = {
-        system_instruction: {
-            parts: [{ text: systemPrompts.standard }]
-        },
         contents: [{
-            parts: [{
-                inline_data: {
-                    mime_type: "image/jpeg",
-                    data: base64Data
+            parts: [
+                { text: systemPrompts.standard },
+                {
+                    inline_data: {
+                        mime_type: "image/jpeg",
+                        data: base64Data
+                    }
                 }
-            }]
+            ]
         }],
         generation_config: {
-            temperature: 0.2,
+            temperature: 0.3,
+            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
             max_output_tokens: 8192,
-            response_mime_type: "application/json" 
+            responseMimeType: "application/json" 
         },
         safety_settings: safetySettings
     };
     
+    // 修复2: 使用当前有效的、强大的模型名称
     const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
@@ -164,49 +165,39 @@ async function analyzeImage(imageDataUrl) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-
+    
     if (!response.ok) {
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
-        let message = `API请求失败，状态码: ${response.status}.`;
-        if (errorData.error?.message) {
-            message += `\n原因: ${errorData.error.message}`;
-            if (errorData.error.message.includes("API key not valid")) {
-                message += `\n\n请检查您的API密钥是否正确，并确保已在您的Google Cloud项目中启用了Generative Language API。`;
-            }
-        }
-        throw new Error(message);
+        throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
     }
     
     const data = await response.json();
-
     if (!data.candidates || data.candidates.length === 0) {
         const finishReason = data.promptFeedback?.blockReason;
         if (finishReason) {
-             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整Prompt。`);
+             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
         }
-        throw new Error('API未返回任何分析结果，可能是图片无法识别或网络问题。');
+        throw new Error('API未返回任何分析结果，可能是图片无法识别。');
     }
     
-    const text = data.candidates[0]?.content?.parts[0]?.text;
+    let text = data.candidates[0]?.content?.parts[0]?.text;
     
     if (!text) {
         throw new Error('API返回内容中不包含有效的文本数据。');
     }
     
     try {
+        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
+        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            text = jsonMatch[0];
+        }
         return JSON.parse(text);
     } catch (parseError) {
         console.error('解析JSON失败的原始文本:', text);
-        const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch && jsonMatch[1]) {
-            try {
-                return JSON.parse(jsonMatch[1]);
-            } catch (innerError) {
-                 throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
-            }
-        }
-        throw new Error('分析结果格式严重错误，无法解析返回的JSON。请检查控制台中的原始文本。');
+        throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
     }
 }
 
@@ -221,66 +212,15 @@ function displayResult(resultData) {
     elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
     elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
-    elements.bustProminence.textContent = resultData.bustProminence ? `${resultData.bustProminence}cm` : '--';
-    
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
     if (cupIndex >= 0) {
-        const cupWidth = Math.min(100, (cupIndex + 1) * (100 / (cupSizes.length - 4)));
+        const cupWidth = Math.min(100, (cupIndex + 1) * (100 / cupSizes.length));
         elements.cupFill.style.width = `${cupWidth}%`;
     } else {
         elements.cupFill.style.width = '0%';
     }
-    
-    // **最终版** explanation 处理器
-    let explanationContent = '未提供解释。';
-
-    if (resultData.explanation) {
-        // 情况一：返回的是字符串 (理想情况)
-        if (typeof resultData.explanation === 'string') {
-            explanationContent = resultData.explanation
-                .replace(/\n/g, '<br>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/【(.*?)】/g, '<h4>【$1】</h4>')
-                .replace(/\* (.*?):/g, '<br><strong>$1:</strong>');
-        } 
-        // 情况二：返回的是对象 (包括嵌套对象)
-        else if (typeof resultData.explanation === 'object' && resultData.explanation !== null) {
-            let formattedHtml = '';
-            // 外层循环，遍历每个“阶段”
-            for (const phaseTitle in resultData.explanation) {
-                if (Object.hasOwnProperty.call(resultData.explanation, phaseTitle)) {
-                    // 将阶段标题作为H4，并清理可能存在的`符号
-                    formattedHtml += `<h4>【${phaseTitle.replace(/`/g, '')}】</h4>`;
-                    
-                    const phaseDetails = resultData.explanation[phaseTitle];
-
-                    // 检查阶段的详细内容是对象还是普通字符串
-                    if (typeof phaseDetails === 'object' && phaseDetails !== null) {
-                        // 如果是对象，则进入内层循环，创建无序列表
-                        formattedHtml += '<ul>';
-                        for (const detailKey in phaseDetails) {
-                            if (Object.hasOwnProperty.call(phaseDetails, detailKey)) {
-                                const detailValue = String(phaseDetails[detailKey]).replace(/\n/g, '<br>');
-                                formattedHtml += `<li><strong>${detailKey}:</strong> ${detailValue}</li>`;
-                            }
-                        }
-                        formattedHtml += '</ul>';
-                    } else {
-                        // 如果只是字符串，直接作为段落显示
-                        formattedHtml += `<p>${String(phaseDetails).replace(/\n/g, '<br>')}</p>`;
-                    }
-                }
-            }
-            explanationContent = formattedHtml;
-        }
-        // 情况三：其他所有意外类型
-        else {
-            explanationContent = `收到了未知格式的解释内容: ${String(resultData.explanation)}`;
-        }
-    }
-    
-    elements.explanation.innerHTML = explanationContent;
+    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
 }
 
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
@@ -294,37 +234,23 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.hip.textContent = '--';
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
-    elements.bustProminence.textContent = '--';
     elements.cupFill.style.width = '0%';
     
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
 function handleTryAgain() {
+    // 如果当前有分析结果，则直接重新分析
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
        handleStartAnalysis();
-    } else {
+    } else { // 否则，返回到上传界面
         resetToUpload();
     }
 }
 
 function saveResult() {
-    const node = document.getElementById('result');
-    if (window.html2canvas) {
-        html2canvas(node, { 
-            backgroundColor: null, // 保持背景透明或CSS定义的背景
-            useCORS: true // 如果图片跨域需要
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = '角色分析报告.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        });
-    } else {
-         alert('结果保存功能需要 html2canvas 库。您可以手动截图。');
-    }
+    alert('结果保存功能尚未实现');
 }
-
 
 function resetToUpload() {
     elements.previewContainer.classList.add('hidden');
