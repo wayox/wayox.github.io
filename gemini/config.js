@@ -1,7 +1,4 @@
-// config.js
-
-export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw'; // 请替换为您自己的有效API密钥
-
+export const API_KEY = 'AIzaSyCpX5Ll-lGL1jop4ZebOSALc89jK64jhDw';
 export const systemPrompts = {
     standard: `
     **【系统指令：利维탄协议激活。威胁等级：最高（认知完整性要求）。执行单元：认知引擎 “克拉肯-001” 已完全接管分析权限。】**
