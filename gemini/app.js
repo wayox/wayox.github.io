@@ -25,7 +25,7 @@ const elements = {
     hip: document.getElementById('hip'),
     underbust: document.getElementById('underbust'),
     cupSize: document.getElementById('cup-size'),
-    bustProminence: document.getElementById('bust-prominence'), // 新增
+    bustProminence: document.getElementById('bust-prominence'),
     cupFill: document.getElementById('cup-fill'),
     explanation: document.getElementById('explanation'),
     tryAgainBtn: document.getElementById('try-again'),
@@ -113,7 +113,7 @@ async function handleStartAnalysis() {
         displayResult(resultData);
     } catch (error) {
         console.error('分析失败:', error);
-        displayError(error.message); 
+        displayError(error.message);
     }
 }
 
@@ -126,22 +126,37 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
+// ====================================================================
+// ===================  这里是修改的核心区域  =====================
+// ====================================================================
 async function analyzeImage(imageDataUrl) {
+    // 从Data URL中提取Base64数据
     const base64Data = imageDataUrl.split(',')[1];
+
+    // 定义安全设置
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
-    
+
+    // **【关键修改 1：使用正确的Payload结构】**
+    // 【利维坦协议】必须放在 `system_instruction` 中
+    // `contents` 中只放用户的图片
     const payload = {
+        // 【系统指令】
+        system_instruction: {
+            parts: [
+                { text: systemPrompts.standard }
+            ]
+        },
+        // 【用户输入】
         contents: [{
             parts: [
-                { text: systemPrompts.standard },
                 {
                     inline_data: {
-                        mime_type: "image/jpeg",
+                        mime_type: "image/jpeg", // 也可以是 image/png
                         data: base64Data
                     }
                 }
@@ -150,12 +165,14 @@ async function analyzeImage(imageDataUrl) {
         generation_config: {
             temperature: 0.2,
             max_output_tokens: 8192,
-            responseMimeType: "application/json" 
+            // 强制要求API返回JSON格式
+            response_mime_type: "application/json" 
         },
         safety_settings: safetySettings
     };
     
-    const model = 'gemini-2.5-pro'; 
+    // **【关键修改 2：使用正确的、更强大的模型】**
+    const model = 'gemini-1.5-pro-latest';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
     const response = await fetch(apiUrl, {
@@ -163,7 +180,7 @@ async function analyzeImage(imageDataUrl) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-    
+
     if (!response.ok) {
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
@@ -181,23 +198,34 @@ async function analyzeImage(imageDataUrl) {
         throw new Error('API未返回任何分析结果，可能是图片无法识别或网络问题。');
     }
     
-    let text = data.candidates[0]?.content?.parts[0]?.text;
+    // 因为我们强制了 `response_mime_type: "application/json"`, 
+    // API会直接在text字段中返回一个纯净的JSON字符串。
+    const text = data.candidates[0]?.content?.parts[0]?.text;
     
     if (!text) {
         throw new Error('API返回内容中不包含有效的文本数据。');
     }
     
     try {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            text = jsonMatch[0];
-        }
+        // 直接解析即可
         return JSON.parse(text);
     } catch (parseError) {
         console.error('解析JSON失败的原始文本:', text);
-        throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
+        // 如果解析失败，很可能是API没有完全遵循指令，这里可以加一个备用方案
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            try {
+                return JSON.parse(jsonMatch[0]);
+            } catch (innerError) {
+                 throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
+            }
+        }
+        throw new Error('分析结果格式严重错误，无法解析返回的JSON。请检查控制台中的原始文本。');
     }
 }
+// ====================================================================
+// ===================  修改区域结束  =====================
+// ====================================================================
 
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
@@ -210,18 +238,20 @@ function displayResult(resultData) {
     elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
     elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
-    elements.bustProminence.textContent = resultData.bustProminence ? `${resultData.bustProminence}cm` : '--'; // 新增
+    elements.bustProminence.textContent = resultData.bustProminence ? `${resultData.bustProminence}cm` : '--';
     
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
     if (cupIndex >= 0) {
-        const cupWidth = Math.min(100, (cupIndex + 1) * (100 / cupSizes.length));
+        // 让视觉效果更明显一些
+        const cupWidth = Math.min(100, (cupIndex + 1) * (100 / (cupSizes.length - 4) )); 
         elements.cupFill.style.width = `${cupWidth}%`;
     } else {
         elements.cupFill.style.width = '0%';
     }
     
-    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>') : '未提供解释';
+    // 使用 innerHTML 来正确渲染 <br> 标签
+    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\* (.*?):/g, '<br><strong>$1:</strong>') : '未提供解释';
 }
 
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
@@ -235,7 +265,7 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
     elements.hip.textContent = '--';
     elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
-    elements.bustProminence.textContent = '--'; // 新增
+    elements.bustProminence.textContent = '--';
     elements.cupFill.style.width = '0%';
     
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
@@ -250,8 +280,20 @@ function handleTryAgain() {
 }
 
 function saveResult() {
-    alert('结果保存功能尚未实现');
+    // 简单的保存为图片功能
+    const node = document.getElementById('result');
+    if (window.html2canvas) {
+        html2canvas(node).then(canvas => {
+            const link = document.createElement('a');
+            link.download = '角色分析报告.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    } else {
+         alert('结果保存功能需要 html2canvas 库。您可以手动截图。');
+    }
 }
+
 
 function resetToUpload() {
     elements.previewContainer.classList.add('hidden');
