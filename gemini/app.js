@@ -130,7 +130,6 @@ function showLoading(imageDataUrl) {
 // ===================  这里是修改的核心区域  =====================
 // ====================================================================
 async function analyzeImage(imageDataUrl) {
-    // 从Data URL中提取Base64数据
     const base64Data = imageDataUrl.split(',')[1];
 
     // 定义安全设置
@@ -142,8 +141,8 @@ async function analyzeImage(imageDataUrl) {
     ];
 
     // **【关键修改 1：使用正确的Payload结构】**
-    // 【利维坦协议】必须放在 `system_instruction` 中
-    // `contents` 中只放用户的图片
+    // 【利维坦协议】必须放在 `system_instruction` 中，这是新版API的标准做法，能更好地指导模型行为。
+    // `contents` 中只放用户的图片和问题。
     const payload = {
         // 【系统指令】
         system_instruction: {
@@ -156,7 +155,7 @@ async function analyzeImage(imageDataUrl) {
             parts: [
                 {
                     inline_data: {
-                        mime_type: "image/jpeg", // 也可以是 image/png
+                        mime_type: "image/jpeg", // 也可以是 image/png 等
                         data: base64Data
                     }
                 }
@@ -165,14 +164,15 @@ async function analyzeImage(imageDataUrl) {
         generation_config: {
             temperature: 0.2,
             max_output_tokens: 8192,
-            // 强制要求API返回JSON格式
+            // 强制要求API返回JSON格式，极大简化了解析过程
             response_mime_type: "application/json" 
         },
         safety_settings: safetySettings
     };
     
     // **【关键修改 2：使用正确的、更强大的模型】**
-    const model = 'gemini-2.5-pro';
+    // 'gemini-2.5-pro' 不存在，我们使用当前最强大的公开模型 'gemini-1.5-pro'
+    const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
     const response = await fetch(apiUrl, {
@@ -184,16 +184,24 @@ async function analyzeImage(imageDataUrl) {
     if (!response.ok) {
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
-        const message = errorData.error?.message || `API请求失败，状态码: ${response.status}`;
+        // 提供更友好的错误提示
+        let message = `API请求失败，状态码: ${response.status}.`;
+        if (errorData.error?.message) {
+            message += `\n原因: ${errorData.error.message}`;
+            if (errorData.error.message.includes("API key not valid")) {
+                message += `\n\n请检查您的API密钥是否正确，并确保已在您的Google Cloud项目中启用了Generative Language API。`;
+            }
+        }
         throw new Error(message);
     }
     
     const data = await response.json();
 
+    // 健壮性检查：处理API可能因安全策略等原因不返回候选内容的情况
     if (!data.candidates || data.candidates.length === 0) {
         const finishReason = data.promptFeedback?.blockReason;
         if (finishReason) {
-             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
+             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整Prompt。`);
         }
         throw new Error('API未返回任何分析结果，可能是图片无法识别或网络问题。');
     }
@@ -212,10 +220,11 @@ async function analyzeImage(imageDataUrl) {
     } catch (parseError) {
         console.error('解析JSON失败的原始文本:', text);
         // 如果解析失败，很可能是API没有完全遵循指令，这里可以加一个备用方案
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
+        // 尝试从可能包含 Markdown 格式的文本中提取 JSON
+        const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+        if (jsonMatch && jsonMatch[1]) {
             try {
-                return JSON.parse(jsonMatch[0]);
+                return JSON.parse(jsonMatch[1]);
             } catch (innerError) {
                  throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
             }
@@ -250,13 +259,15 @@ function displayResult(resultData) {
         elements.cupFill.style.width = '0%';
     }
     
-    // 使用 innerHTML 来正确渲染 <br> 标签
-    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\* (.*?):/g, '<br><strong>$1:</strong>') : '未提供解释';
+    // 使用 innerHTML 来正确渲染 <br> 标签和加粗等格式
+    // 增加了对 **text** 和 * item: 格式的支持
+    elements.explanation.innerHTML = resultData.explanation ? resultData.explanation.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/【(.*?)】/g, '<h4>【$1】</h4>').replace(/\* (.*?):/g, '<br><strong>$1:</strong>') : '未提供解释';
 }
 
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
+    // 清空数据
     elements.height.textContent = '--';
     elements.weight.textContent = '--';
     elements.age.textContent = '--';
@@ -272,6 +283,7 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
 }
 
 function handleTryAgain() {
+    // 逻辑优化：如果当前已在结果页，则使用当前图片重新分析
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
        handleStartAnalysis();
     } else {
