@@ -129,7 +129,6 @@ function showLoading(imageDataUrl) {
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
 
-    // 定义安全设置
     const safetySettings = [
         { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
@@ -138,31 +137,25 @@ async function analyzeImage(imageDataUrl) {
     ];
 
     const payload = {
-        // 【系统指令】
         system_instruction: {
-            parts: [
-                { text: systemPrompts.standard }
-            ]
+            parts: [{ text: systemPrompts.standard }]
         },
-        // 【用户输入】
         contents: [{
-            parts: [
-                {
-                    inline_data: {
-                        mime_type: "image/jpeg", // 也可以是 image/png 等
-                        data: base64Data
-                    }
+            parts: [{
+                inline_data: {
+                    mime_type: "image/jpeg",
+                    data: base64Data
                 }
-            ]
+            }]
         }],
         generation_config: {
             temperature: 0.2,
             max_output_tokens: 8192,
-            // 强制要求API返回JSON格式，极大简化了解析过程
             response_mime_type: "application/json" 
         },
         safety_settings: safetySettings
     };
+    
     const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
@@ -175,7 +168,6 @@ async function analyzeImage(imageDataUrl) {
     if (!response.ok) {
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
-        // 提供更友好的错误提示
         let message = `API请求失败，状态码: ${response.status}.`;
         if (errorData.error?.message) {
             message += `\n原因: ${errorData.error.message}`;
@@ -203,11 +195,9 @@ async function analyzeImage(imageDataUrl) {
     }
     
     try {
-        // 直接解析JSON
         return JSON.parse(text);
     } catch (parseError) {
         console.error('解析JSON失败的原始文本:', text);
-        // 尝试从可能包含 Markdown 格式的文本中提取 JSON
         const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
         if (jsonMatch && jsonMatch[1]) {
             try {
@@ -242,11 +232,11 @@ function displayResult(resultData) {
         elements.cupFill.style.width = '0%';
     }
     
-    // 【关键修复】处理 explanation 可能为对象或字符串的情况
-    let explanationContent = '未提供解释。'; // 设置一个默认值
+    // **最终版** explanation 处理器
+    let explanationContent = '未提供解释。';
 
     if (resultData.explanation) {
-        // **情况一：explanation 是字符串（正常情况）**
+        // 情况一：返回的是字符串 (理想情况)
         if (typeof resultData.explanation === 'string') {
             explanationContent = resultData.explanation
                 .replace(/\n/g, '<br>')
@@ -254,22 +244,37 @@ function displayResult(resultData) {
                 .replace(/【(.*?)】/g, '<h4>【$1】</h4>')
                 .replace(/\* (.*?):/g, '<br><strong>$1:</strong>');
         } 
-        // **情况二：explanation 是对象（异常但可处理的情况）**
+        // 情况二：返回的是对象 (包括嵌套对象)
         else if (typeof resultData.explanation === 'object' && resultData.explanation !== null) {
-            // 将对象转换成格式化的HTML字符串
             let formattedHtml = '';
-            for (const key in resultData.explanation) {
-                if (Object.hasOwnProperty.call(resultData.explanation, key)) {
-                    const value = resultData.explanation[key];
-                    formattedHtml += `<h4>【${key}】</h4>`;
-                    // 将值中的换行符也转换为 <br>
-                    const formattedValue = String(value).replace(/\n/g, '<br>');
-                    formattedHtml += `<p>${formattedValue}</p>`;
+            // 外层循环，遍历每个“阶段”
+            for (const phaseTitle in resultData.explanation) {
+                if (Object.hasOwnProperty.call(resultData.explanation, phaseTitle)) {
+                    // 将阶段标题作为H4，并清理可能存在的`符号
+                    formattedHtml += `<h4>【${phaseTitle.replace(/`/g, '')}】</h4>`;
+                    
+                    const phaseDetails = resultData.explanation[phaseTitle];
+
+                    // 检查阶段的详细内容是对象还是普通字符串
+                    if (typeof phaseDetails === 'object' && phaseDetails !== null) {
+                        // 如果是对象，则进入内层循环，创建无序列表
+                        formattedHtml += '<ul>';
+                        for (const detailKey in phaseDetails) {
+                            if (Object.hasOwnProperty.call(phaseDetails, detailKey)) {
+                                const detailValue = String(phaseDetails[detailKey]).replace(/\n/g, '<br>');
+                                formattedHtml += `<li><strong>${detailKey}:</strong> ${detailValue}</li>`;
+                            }
+                        }
+                        formattedHtml += '</ul>';
+                    } else {
+                        // 如果只是字符串，直接作为段落显示
+                        formattedHtml += `<p>${String(phaseDetails).replace(/\n/g, '<br>')}</p>`;
+                    }
                 }
             }
             explanationContent = formattedHtml;
         }
-        // **情况三：其他意外类型**
+        // 情况三：其他所有意外类型
         else {
             explanationContent = `收到了未知格式的解释内容: ${String(resultData.explanation)}`;
         }
@@ -281,7 +286,6 @@ function displayResult(resultData) {
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
-    // 清空数据
     elements.height.textContent = '--';
     elements.weight.textContent = '--';
     elements.age.textContent = '--';
@@ -307,7 +311,10 @@ function handleTryAgain() {
 function saveResult() {
     const node = document.getElementById('result');
     if (window.html2canvas) {
-        html2canvas(node).then(canvas => {
+        html2canvas(node, { 
+            backgroundColor: null, // 保持背景透明或CSS定义的背景
+            useCORS: true // 如果图片跨域需要
+        }).then(canvas => {
             const link = document.createElement('a');
             link.download = '角色分析报告.png';
             link.href = canvas.toDataURL('image/png');
