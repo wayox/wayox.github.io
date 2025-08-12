@@ -176,7 +176,7 @@ async function analyzeImage(imageDataUrl) {
         throw new Error('API未返回任何分析结果，可能是图片无法识别。');
     }
     
-    let text = data.candidates[0]?.content?.parts[0]?.text;
+    let text = data.candidates[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
         throw new Error('API返回内容中不包含有效的文本数据。');
