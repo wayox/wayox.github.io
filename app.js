@@ -52,7 +52,7 @@ function setupEventListeners() {
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
+    const dropZones = [document.body, elements.uploadArea]; 
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -123,9 +123,6 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
-// =================================================================
-// ============== 函数已修复，请注意以下修改 ==========================
-// =================================================================
 async function analyzeImage(imageDataUrl) {
     const base64Data = imageDataUrl.split(',')[1];
     const safetySettings = [
@@ -149,14 +146,12 @@ async function analyzeImage(imageDataUrl) {
         }],
         generation_config: {
             temperature: 0.3,
-            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
             max_output_tokens: 8192,
             responseMimeType: "application/json" 
         },
         safety_settings: safetySettings
     };
-    
-    // 修复2: 使用当前有效的、强大的模型名称
+
     const model = 'gemini-2.5-pro'; 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
@@ -188,8 +183,6 @@ async function analyzeImage(imageDataUrl) {
     }
     
     try {
-        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
-        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             text = jsonMatch[0];
@@ -240,10 +233,10 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
 }
 
 function handleTryAgain() {
-    // 如果当前有分析结果，则直接重新分析
+
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
        handleStartAnalysis();
-    } else { // 否则，返回到上传界面
+    } else { 
         resetToUpload();
     }
 }
@@ -260,5 +253,4 @@ function resetToUpload() {
     selectedImageDataUrl = null;
 }
 
-// 初始化
 initialize();
