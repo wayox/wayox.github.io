@@ -147,7 +147,7 @@ async function analyzeImage(imageDataUrl) {
         generation_config: {
             temperature: 0.3,
             max_output_tokens: 8192,
-            response_mime_Type: "application/json" 
+            response_mime_type: "application/json" 
         },
         safety_settings: safetySettings
     };
