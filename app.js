@@ -1,6 +1,4 @@
-// app.js
-// (已修改) 导入 referenceLibrary 而不是 builtInReference
-import { API_KEY, systemPrompts, referenceLibrary } from './config.js';
+import { API_KEY, systemPrompts } from './config.js';
 
 const elements = {
     uploadArea: document.getElementById('upload-area'),
@@ -11,7 +9,6 @@ const elements = {
     changeImageBtn: document.getElementById('change-image-btn'),
     disclaimer: document.getElementById('disclaimer'),
     closeDisclaimerBtn: document.getElementById('close-disclaimer'),
-    themeToggle: document.getElementById('theme-toggle'),
     resultContainer: document.getElementById('result-container'),
     imagePreview: document.getElementById('image-preview'),
     loading: document.getElementById('loading'),
@@ -42,30 +39,38 @@ function setupEventListeners() {
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
     elements.fileInput.addEventListener('change', handleFileSelect);
     elements.startAnalysisBtn.addEventListener('click', handleStartAnalysis);
-    elements.changeImageBtn.addEventListener('click', resetToUpload); // 直接调用resetToUpload
+    elements.changeImageBtn.addEventListener('click', () => {
+        resetToUpload();
+        elements.fileInput.click();
+    });
     elements.closeDisclaimerBtn.addEventListener('click', () => {
         elements.disclaimer.style.display = 'none';
     });
-    elements.themeToggle.addEventListener('click', toggleTheme);
     elements.tryAgainBtn.addEventListener('click', handleTryAgain);
     elements.saveBtn.addEventListener('click', saveResult);
     setupDragAndDrop();
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea];
+    const dropZones = [document.body, elements.uploadArea]; // 允许拖拽到整个页面
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            if (zone === elements.uploadArea) zone.classList.add('drag-over');
+            if (zone === elements.uploadArea) {
+                zone.classList.add('drag-over');
+            }
         });
         zone.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            if (zone === elements.uploadArea) zone.classList.remove('drag-over');
+            if (zone === elements.uploadArea) {
+                zone.classList.remove('drag-over');
+            }
         });
         zone.addEventListener('drop', (e) => {
             e.preventDefault();
-            if (zone === elements.uploadArea) zone.classList.remove('drag-over');
+            if (zone === elements.uploadArea) {
+                zone.classList.remove('drag-over');
+            }
             if (e.dataTransfer.files.length) {
                 elements.fileInput.files = e.dataTransfer.files;
                 handleFileSelect();
@@ -73,6 +78,7 @@ function setupDragAndDrop() {
         });
     });
 }
+
 
 function handleFileSelect() {
     if (!elements.fileInput.files.length) return;
@@ -117,120 +123,83 @@ function showLoading(imageDataUrl) {
     elements.result.classList.add('hidden');
 }
 
+// =================================================================
+// ============== 函数已修复，请注意以下修改 ==========================
+// =================================================================
+async function analyzeImage(imageDataUrl) {
+    const base64Data = imageDataUrl.split(',')[1];
+    const safetySettings = [
+        { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
+        { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
+    ];
+    
+    const payload = {
+        contents: [{
+            parts: [
+                { text: systemPrompts.standard },
+                {
+                    inline_data: {
+                        mime_type: "image/jpeg",
+                        data: base64Data
+                    }
+                }
+            ]
+        }],
+        generation_config: {
+            temperature: 0.3,
+            // 修复1: 增加最大输出令牌数，防止返回的JSON被截断
+            max_output_tokens: 8192,
+            responseMimeType: "application/json" 
+        },
+        safety_settings: safetySettings
+    };
+    
+    // 修复2: 使用当前有效的、强大的模型名称
+    const model = 'gemini-2.5-pro'; 
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
-// =================================================================
-// ============== 函数已完全重构以支持参考资料库 =====================
-// =================================================================
-async function analyzeImage(targetImageDataUrl) {
-    // 辅助函数：通过 fetch 将文件路径转换为 Base64
-    async function imagePathToBase64(path) {
-        const response = await fetch(path);
-        if (!response.ok) {
-            throw new Error(`无法加载参考图片: ${path}，请检查文件是否存在且路径正确。`);
-        }
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result.split(',')[1]); // 只返回base64数据部分
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error("API Error Response:", errorData);
+        throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
     }
-
+    
+    const data = await response.json();
+    if (!data.candidates || data.candidates.length === 0) {
+        const finishReason = data.promptFeedback?.blockReason;
+        if (finishReason) {
+             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
+        }
+        throw new Error('API未返回任何分析结果，可能是图片无法识别。');
+    }
+    
+    let text = data.candidates[0]?.content?.parts[0]?.text;
+    
+    if (!text) {
+        throw new Error('API返回内容中不包含有效的文本数据。');
+    }
+    
     try {
-        console.log("开始加载参考资料库...");
-        // 并行获取所有参考图的Base64数据
-        const referenceBase64s = await Promise.all(
-            referenceLibrary.map(ref => imagePathToBase64(ref.imagePath))
-        );
-        console.log("参考资料库加载完成。");
-
-        const targetBase64 = targetImageDataUrl.split(',')[1];
-
-        const safetySettings = [
-            { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
-            { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
-            { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
-            { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
-        ];
-
-        const prompt = systemPrompts.referenceAnalysis;
-        
-        // 构建包含所有图片和数据的 parts 数组
-        const parts = [
-            { text: prompt },
-            { text: "\n\n---\n\n【分析目标】" },
-            { inline_data: { mime_type: "image/jpeg", data: targetBase64 } },
-            { text: "\n\n---\n\n【参考资料库】\n请从以下资料库中选择最匹配的参照物进行分析：" }
-        ];
-
-        // 动态地将所有参考图及其数据添加到 parts 数组中
-        referenceLibrary.forEach((ref, index) => {
-            parts.push({ text: `\n\n**参考角色 ${index + 1}:**\n` + JSON.stringify(ref.stats, null, 2) });
-            parts.push({ inline_data: { mime_type: "image/jpeg", data: referenceBase64s[index] } });
-        });
-        
-        const payload = {
-            contents: [{ parts: parts }],
-            generation_config: {
-                temperature: 0.2, // 温度可以稍低，让选择更具确定性
-                max_output_tokens: 8192,
-                responseMimeType: "application/json" 
-            },
-            safety_settings: safetySettings
-        };
-        
-        // 使用支持大规模多模态输入的强大模型
-        const model = 'gemini-1.5-pro-latest'; 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
-
-        console.log("正在发送API请求...");
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("API Error Response:", errorData);
-            throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
+        // 修复3: 使JSON解析更健壮。模型有时会返回 ```json ... ``` 这样的markdown块，
+        // 用正则表达式提取出其中的 {} 包裹的纯JSON部分，避免解析错误。
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            text = jsonMatch[0];
         }
-        
-        const data = await response.json();
-        console.log("成功接收API响应。");
-
-        if (!data.candidates || data.candidates.length === 0 || !data.candidates[0].content) {
-            const blockReason = data.promptFeedback?.blockReason;
-            if (blockReason) {
-                throw new Error(`请求被模型阻止，原因: ${blockReason}。请检查图片内容。`);
-            }
-            throw new Error('API未返回任何分析结果，可能是图片无法识别。');
-        }
-        
-        let text = data.candidates[0]?.content?.parts[0]?.text;
-        
-        if (!text) {
-            throw new Error('API返回内容中不包含有效的文本数据。');
-        }
-        
-        try {
-            const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                text = jsonMatch[0];
-            }
-            return JSON.parse(text);
-        } catch (parseError) {
-            console.error('解析JSON失败的原始文本:', text);
-            throw new Error('分析结果格式错误，无法解析返回的JSON。');
-        }
-
-    } catch (error) {
-        console.error("分析流程中发生严重错误:", error);
-        throw new Error(error.message || '分析过程中发生未知错误。');
+        return JSON.parse(text);
+    } catch (parseError) {
+        console.error('解析JSON失败的原始文本:', text);
+        throw new Error('分析结果格式错误，无法解析返回的JSON。请检查控制台中的原始文本。');
     }
 }
-
 
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
@@ -271,9 +240,10 @@ function displayError(errorMessage = '分析失败，请尝试更换图片或稍
 }
 
 function handleTryAgain() {
+    // 如果当前有分析结果，则直接重新分析
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
        handleStartAnalysis();
-    } else {
+    } else { // 否则，返回到上传界面
         resetToUpload();
     }
 }
@@ -288,11 +258,6 @@ function resetToUpload() {
     elements.uploadArea.classList.remove('hidden');
     elements.fileInput.value = '';
     selectedImageDataUrl = null;
-}
-
-function toggleTheme() {
-    document.body.classList.toggle('dark-mode');
-    elements.themeToggle.textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
 }
 
 // 初始化
