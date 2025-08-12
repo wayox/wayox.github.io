@@ -197,8 +197,6 @@ async function analyzeImage(imageDataUrl) {
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
-    const threeSizes = resultData.threeSizes || {};
-    const bustDetails = resultData.bustDetails || {};
     elements.height.textContent = resultData.height ? `${resultData.height}cm` : '--';
     elements.weight.textContent = resultData.weight ? `${resultData.weight}kg` : '--';
     elements.age.textContent = resultData.age ? `${resultData.age}岁` : '--';
