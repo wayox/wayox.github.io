@@ -11,7 +11,7 @@ export const systemPrompts = {
 
     **输出格式要求:**
     -   必须返回一个**没有任何前后多余文本**的、格式完全正确的JSON对象。
-    -   所有数值字段（`age`除外）必须是保留一位小数的 `number` 类型。`age` 必须是 `integer`。
+    -   所有数值字段（"age"除外）必须是保留一位小数的 "number" 类型。"age" 必须是 "integer"。
     -   `explanation` 必须是一个结构化的字符串，严格按照下方给出的要点进行分段阐述。
 
     {
