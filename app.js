@@ -15,13 +15,6 @@ const elements = {
     result: document.getElementById('result'),
     verdict: document.getElementById('verdict'),
     verdictIcon: document.getElementById('verdict-icon'),
-    height: document.getElementById('height'),
-    weight: document.getElementById('weight'),
-    age: document.getElementById('age'),
-    overbust: document.getElementById('overbust'),
-    waist: document.getElementById('waist'),
-    hip: document.getElementById('hip'),
-    underbust: document.getElementById('underbust'),
     cupSize: document.getElementById('cup-size'),
     cupFill: document.getElementById('cup-fill'),
     explanation: document.getElementById('explanation'),
@@ -52,7 +45,7 @@ function setupEventListeners() {
 }
 
 function setupDragAndDrop() {
-    const dropZones = [document.body, elements.uploadArea]; 
+    const dropZones = [document.body, elements.uploadArea];
     dropZones.forEach(zone => {
         zone.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -78,7 +71,6 @@ function setupDragAndDrop() {
         });
     });
 }
-
 
 function handleFileSelect() {
     if (!elements.fileInput.files.length) return;
@@ -110,7 +102,7 @@ async function handleStartAnalysis() {
         displayResult(resultData);
     } catch (error) {
         console.error('分析失败:', error);
-        displayError(error.message); 
+        displayError(error.message);
     }
 }
 
@@ -131,7 +123,7 @@ async function analyzeImage(imageDataUrl) {
         { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
     ];
-    
+   
     const payload = {
         contents: [{
             parts: [
@@ -147,41 +139,39 @@ async function analyzeImage(imageDataUrl) {
         generation_config: {
             temperature: 0.3,
             max_output_tokens: 8192,
-            response_mime_type: "application/json" 
+            response_mime_type: "application/json"
         },
         safety_settings: safetySettings
     };
-
-    const model = 'gemini-2.5-pro'; 
+    const model = 'gemini-2.5-pro';
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
-
     const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
     });
-    
+   
     if (!response.ok) {
         const errorData = await response.json();
         console.error("API Error Response:", errorData);
         throw new Error(errorData.error?.message || `API请求失败，状态码: ${response.status}`);
     }
-    
+   
     const data = await response.json();
     if (!data.candidates || data.candidates.length === 0) {
         const finishReason = data.promptFeedback?.blockReason;
         if (finishReason) {
-             throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
+            throw new Error(`请求被模型阻止，原因: ${finishReason}。请尝试更换图片或调整安全设置。`);
         }
         throw new Error('API未返回任何分析结果，可能是图片无法识别。');
     }
-    
+   
     let text = data.candidates[0]?.content?.parts?.[0]?.text;
-    
+   
     if (!text) {
         throw new Error('API返回内容中不包含有效的文本数据。');
     }
-    
+   
     try {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -197,13 +187,6 @@ async function analyzeImage(imageDataUrl) {
 function displayResult(resultData) {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
-    elements.height.textContent = resultData.height ? `${resultData.height}cm` : '--';
-    elements.weight.textContent = resultData.weight ? `${resultData.weight}kg` : '--';
-    elements.age.textContent = resultData.age ? `${resultData.age}岁` : '--';
-    elements.overbust.textContent = resultData.overbust ? `${resultData.overbust}cm` : '--';
-    elements.waist.textContent = resultData.waist ? `${resultData.waist}cm` : '--';
-    elements.hip.textContent = resultData.hip ? `${resultData.hip}cm` : '--';
-    elements.underbust.textContent = resultData.underbust ? `${resultData.underbust}cm` : '--';
     elements.cupSize.textContent = resultData.cupSize || '--';
     const cupSizes = ["AA", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
     const cupIndex = resultData.cupSize ? cupSizes.indexOf(resultData.cupSize.toUpperCase()) : -1;
@@ -219,24 +202,15 @@ function displayResult(resultData) {
 function displayError(errorMessage = '分析失败，请尝试更换图片或稍后再试。') {
     elements.loading.classList.add('hidden');
     elements.result.classList.remove('hidden');
-    elements.height.textContent = '--';
-    elements.weight.textContent = '--';
-    elements.age.textContent = '--';
-    elements.overbust.textContent = '--';
-    elements.waist.textContent = '--';
-    elements.hip.textContent = '--';
-    elements.underbust.textContent = '--';
     elements.cupSize.textContent = '--';
     elements.cupFill.style.width = '0%';
-    
     elements.explanation.innerHTML = `<p class="error-message"><strong>错误:</strong> ${errorMessage.replace(/\n/g, '<br>')}</p>`;
 }
 
 function handleTryAgain() {
-
     if (selectedImageDataUrl && !elements.resultContainer.classList.contains('hidden')) {
-       handleStartAnalysis();
-    } else { 
+        handleStartAnalysis();
+    } else {
         resetToUpload();
     }
 }
